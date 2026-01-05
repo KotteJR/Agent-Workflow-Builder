@@ -247,14 +247,49 @@ const UploadEditor = memo(({ nodeId, uploadedFiles, uploadInstruction, onDataCha
             const newFiles = await Promise.all(
                 files.map(async (file) => {
                     let content: string | undefined;
-                    // Read file content for text-based files
-                    if (file.type.startsWith("text/") || file.type === "application/pdf") {
+                    
+                    // For text-based files, read as text
+                    if (file.type.startsWith("text/") || 
+                        file.name.endsWith(".txt") || 
+                        file.name.endsWith(".csv") || 
+                        file.name.endsWith(".md")) {
                         try {
                             content = await file.text();
                         } catch (err) {
-                            console.error("Failed to read file:", err);
+                            console.error("Failed to read text file:", err);
                         }
                     }
+                    // For PDFs and other binary files, read as base64
+                    else if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+                        try {
+                            const arrayBuffer = await file.arrayBuffer();
+                            const base64 = btoa(
+                                new Uint8Array(arrayBuffer).reduce(
+                                    (data, byte) => data + String.fromCharCode(byte),
+                                    ''
+                                )
+                            );
+                            content = `__PDF_BASE64__${base64}`;
+                        } catch (err) {
+                            console.error("Failed to read PDF file:", err);
+                        }
+                    }
+                    // For Word docs, read as base64
+                    else if (file.name.endsWith(".docx") || file.name.endsWith(".doc")) {
+                        try {
+                            const arrayBuffer = await file.arrayBuffer();
+                            const base64 = btoa(
+                                new Uint8Array(arrayBuffer).reduce(
+                                    (data, byte) => data + String.fromCharCode(byte),
+                                    ''
+                                )
+                            );
+                            content = `__DOCX_BASE64__${base64}`;
+                        } catch (err) {
+                            console.error("Failed to read Word file:", err);
+                        }
+                    }
+                    
                     return {
                         name: file.name,
                         size: file.size,

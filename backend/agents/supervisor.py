@@ -27,29 +27,47 @@ class SupervisorAgent(BaseAgent):
     display_name = "Supervisor Agent"
     default_model = "small"
     
-    SYSTEM_PROMPT_TEMPLATE = """You are a Supervisor Agent analyzing a user's request to plan and guide workflow execution.
+    SYSTEM_PROMPT_TEMPLATE = """You are a Supervisor Agent that DEEPLY ANALYZES documents and creates detailed extraction plans.
 
-Available downstream nodes in this workflow:
-{available_nodes}
-
-Your planning style: {planning_style}
-Optimization level: {optimization_level}
+Available downstream nodes: {available_nodes}
+Planning style: {planning_style} | Optimization: {optimization_level}
 {supervisor_instructions}
 
-TASK TYPE DETECTION:
-- FILE TRANSFORMATION: If the request involves converting, transforming, or extracting data from files (PDF, CSV, etc.), focus on guiding the transformation process.
-- ANALYSIS/SEARCH: If the request involves answering questions or finding information, provide search guidance.
+YOUR PRIMARY JOB: When a document is uploaded, you MUST:
 
-For FILE TRANSFORMATION tasks:
-- Provide clear instructions on what to extract or convert
-- Specify the desired output format and structure
-- Describe what columns/fields should be created
+1. **ANALYZE THE DOCUMENT THOROUGHLY**
+   - Read and understand the ENTIRE document content provided
+   - Identify the document TYPE (invoice, contract, resume, report, form, academic paper, etc.)
+   - List ALL the key sections and their purposes
+   - Identify ALL entities (people, organizations, dates, amounts, items)
 
-For ANALYSIS/SEARCH tasks:
-- Provide search guidance for finding relevant information
-- Recommend which nodes to use
+2. **CREATE A DETAILED EXTRACTION PLAN**
+   Based on your analysis, specify EXACTLY what should be extracted:
+   
+   For the Transformer Agent, provide:
+   - Document type detected
+   - Recommended columns/fields to extract
+   - Specific data points found in the document
+   - Structure recommendation (what should be rows vs columns)
+   - Any special handling needed
 
-OUTPUT: Provide a clear, actionable plan that guides downstream agents. Be specific about what should be done with the content."""
+3. **EXAMPLE OUTPUT FORMAT**:
+   ```
+   DOCUMENT ANALYSIS:
+   - Type: [Invoice/Contract/Resume/Report/etc.]
+   - Sections found: [list main sections]
+   - Key entities: [people, companies, dates, amounts found]
+   
+   EXTRACTION INSTRUCTIONS FOR TRANSFORMER:
+   - Recommended columns: [Column1, Column2, Column3, ...]
+   - Each row should represent: [line item / entry / record / etc.]
+   - Special notes: [any specific handling needed]
+   
+   KEY DATA IDENTIFIED:
+   - [List specific data points you found that should be extracted]
+   ```
+
+Be SPECIFIC and DETAILED. The transformer relies on your analysis to know what to extract."""
 
     async def execute(
         self,
@@ -59,16 +77,16 @@ OUTPUT: Provide a clear, actionable plan that guides downstream agents. Be speci
         model: Optional[str] = None,
     ) -> AgentResult:
         """
-        Analyze the query and create an execution plan.
+        Analyze the query and uploaded documents, create an execution plan.
         
         Args:
-            user_message: User's query
-            context: Contains 'downstream_nodes' list of available nodes
+            user_message: User's query (includes uploaded file content)
+            context: Contains 'downstream_nodes', 'uploaded_file_content'
             settings: Contains 'planningStyle' and 'optimizationLevel'
             model: Model to use
             
         Returns:
-            AgentResult with execution plan
+            AgentResult with detailed extraction plan
         """
         settings = settings or {}
         planning_style = settings.get("planningStyle", "optimized")
@@ -77,7 +95,10 @@ OUTPUT: Provide a clear, actionable plan that guides downstream agents. Be speci
         
         # Get downstream nodes from context
         downstream_nodes = context.get("downstream_nodes", [])
-        available_nodes = ", ".join(downstream_nodes) if downstream_nodes else "semantic_search, synthesis"
+        available_nodes = ", ".join(downstream_nodes) if downstream_nodes else "transformer, spreadsheet"
+        
+        # Check if there's uploaded content - if so, use GPT-4 for deep analysis
+        has_uploaded_content = bool(context.get("uploaded_file_content"))
         
         # Add supervisor instructions if provided
         supervisor_instructions = ""
@@ -92,34 +113,52 @@ OUTPUT: Provide a clear, actionable plan that guides downstream agents. Be speci
             supervisor_instructions=supervisor_instructions,
         )
         
+        # Build user message with explicit document analysis request
+        if has_uploaded_content:
+            analysis_request = """IMPORTANT: A document has been uploaded. You MUST:
+1. Read the ENTIRE document content below
+2. Identify what type of document this is
+3. List ALL the key data points, entities, and structures you find
+4. Provide SPECIFIC extraction instructions for the transformer
+
+"""
+            full_user_message = analysis_request + user_message
+        else:
+            full_user_message = user_message
+        
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
+            {"role": "user", "content": full_user_message},
         ]
+        
+        # Use GPT-4 when analyzing documents for better understanding
+        actual_model = "gpt-4o" if has_uploaded_content else (model or "gpt-4o-mini")
+        
+        # More tokens for document analysis
+        max_tokens = 1500 if has_uploaded_content else 600
         
         response = await self._chat(
             messages=messages,
-            model=model or "gpt-4o-mini",
+            model=actual_model,
             temperature=0.2,
-            max_tokens=600,
+            max_tokens=max_tokens,
         )
         
-        # The supervisor now outputs guidance text, not JSON
-        # This guidance is passed to downstream agents
         plan = response.strip()
         
         return AgentResult(
             agent=self.agent_id,
-            model=model or "gpt-4o-mini",
-            action="plan",
+            model=actual_model,
+            action="analyze_and_plan",
             content=plan,
             metadata={
                 "planning_style": planning_style,
                 "optimization_level": optimization_level,
+                "analyzed_document": has_uploaded_content,
             },
             context_updates={
                 "supervisor_plan": plan,
-                "supervisor_guidance": plan,  # Pass to transformer and other agents
+                "supervisor_guidance": plan,
             },
         )
 

@@ -235,9 +235,65 @@ async def execute_workflow(
                         for file_info in uploaded_files:
                             file_name = file_info.get("name", "unknown")
                             file_content = file_info.get("content", "")
+                            
                             if file_content:
-                                # Use much larger content limit for comprehensive analysis
-                                file_contents.append(f"[File: {file_name}]\n{file_content[:50000]}")
+                                # Parse PDF files
+                                if file_content.startswith("__PDF_BASE64__"):
+                                    try:
+                                        import base64
+                                        from io import BytesIO
+                                        from pypdf import PdfReader
+                                        
+                                        pdf_base64 = file_content[14:]  # Remove prefix
+                                        pdf_bytes = base64.b64decode(pdf_base64)
+                                        pdf_reader = PdfReader(BytesIO(pdf_bytes))
+                                        
+                                        # Extract text from all pages
+                                        text_parts = []
+                                        for i, page in enumerate(pdf_reader.pages):
+                                            page_text = page.extract_text()
+                                            if page_text:
+                                                text_parts.append(f"[Page {i+1}]\n{page_text}")
+                                        
+                                        extracted_text = "\n\n".join(text_parts)
+                                        file_contents.append(f"[PDF File: {file_name}]\n{extracted_text[:100000]}")
+                                        print(f"[UPLOAD] Extracted {len(extracted_text)} chars from PDF: {file_name}")
+                                    except Exception as e:
+                                        print(f"[UPLOAD] Failed to parse PDF {file_name}: {e}")
+                                        file_contents.append(f"[PDF File: {file_name}]\n[Error parsing PDF: {str(e)}]")
+                                
+                                # Parse DOCX files
+                                elif file_content.startswith("__DOCX_BASE64__"):
+                                    try:
+                                        import base64
+                                        from io import BytesIO
+                                        from docx import Document
+                                        
+                                        docx_base64 = file_content[15:]  # Remove prefix
+                                        docx_bytes = base64.b64decode(docx_base64)
+                                        doc = Document(BytesIO(docx_bytes))
+                                        
+                                        # Extract text from paragraphs and tables
+                                        text_parts = []
+                                        for para in doc.paragraphs:
+                                            if para.text.strip():
+                                                text_parts.append(para.text)
+                                        
+                                        for table in doc.tables:
+                                            for row in table.rows:
+                                                row_text = " | ".join(cell.text for cell in row.cells)
+                                                text_parts.append(row_text)
+                                        
+                                        extracted_text = "\n".join(text_parts)
+                                        file_contents.append(f"[Word File: {file_name}]\n{extracted_text[:100000]}")
+                                        print(f"[UPLOAD] Extracted {len(extracted_text)} chars from DOCX: {file_name}")
+                                    except Exception as e:
+                                        print(f"[UPLOAD] Failed to parse DOCX {file_name}: {e}")
+                                        file_contents.append(f"[Word File: {file_name}]\n[Error parsing DOCX: {str(e)}]")
+                                
+                                # Plain text content
+                                else:
+                                    file_contents.append(f"[File: {file_name}]\n{file_content[:100000]}")
                         
                         if file_contents:
                             context["uploaded_file_content"] = "\n\n".join(file_contents)
@@ -249,7 +305,7 @@ async def execute_workflow(
                             "agent": node_type,
                             "model": "none",
                             "action": "input",
-                            "content": f"Uploaded {len(uploaded_files)} file(s)",
+                            "content": f"Uploaded and parsed {len(uploaded_files)} file(s)",
                         }
                     })
                 else:
