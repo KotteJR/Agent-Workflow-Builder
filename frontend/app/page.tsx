@@ -497,6 +497,7 @@ function FlowCanvas() {
                     // Store output on output nodes (response, spreadsheet)
                     const outputContent = result.answer || "";
                     const isSpreadsheet = (result as any).output_format === "spreadsheet";
+                    const hasImages = result.tool_outputs?.images?.length > 0;
                     
                     // Find output nodes and store the result
                     const newOutputs = new Map<string, NodeOutputData>();
@@ -505,8 +506,9 @@ function FlowCanvas() {
                         if (nodeData.nodeType === "response" || nodeData.nodeType === "spreadsheet") {
                             newOutputs.set(node.id, {
                                 content: outputContent,
-                                format: isSpreadsheet ? "spreadsheet" : "text",
+                                format: hasImages ? "image" : (isSpreadsheet ? "spreadsheet" : "text"),
                                 timestamp: Date.now(),
+                                images: result.tool_outputs?.images,
                             });
                         }
                     }

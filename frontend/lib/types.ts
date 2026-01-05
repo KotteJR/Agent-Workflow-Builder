@@ -137,8 +137,9 @@ export interface NodeExecutionState {
 
 export interface NodeOutputData {
     content: string;
-    format?: "text" | "csv" | "json" | "spreadsheet";
+    format?: "text" | "csv" | "json" | "spreadsheet" | "image";
     timestamp: number;
+    images?: Array<{ prompt: string; url: string; style: string }>;
 }
 
 export interface SSEDoneData extends WorkflowExecutionResult {}

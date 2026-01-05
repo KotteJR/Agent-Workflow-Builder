@@ -398,7 +398,8 @@ interface OutputViewerProps {
 }
 
 const OutputViewer = memo(({ nodeId, nodeType, outputData, onViewClick }: OutputViewerProps) => {
-    const hasOutput = outputData && outputData.content;
+    const hasOutput = outputData && (outputData.content || (outputData.images && outputData.images.length > 0));
+    const hasImages = outputData?.images && outputData.images.length > 0;
     
     const handleViewClick = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
@@ -431,13 +432,34 @@ const OutputViewer = memo(({ nodeId, nodeType, outputData, onViewClick }: Output
                     {/* Success indicator */}
                     <div className="flex items-center gap-2 text-green-600">
                         <HiCheckCircle className="w-4 h-4" />
-                        <span className="text-xs font-medium">Output Ready</span>
+                        <span className="text-xs font-medium">{hasImages ? "Image Generated" : "Output Ready"}</span>
                     </div>
                     
-                    {/* Preview - first 100 chars */}
-                    <div className="p-2 bg-gray-50 rounded text-xs text-gray-600 font-mono max-h-[60px] overflow-hidden">
-                        {outputData.content.substring(0, 150)}{outputData.content.length > 150 ? "..." : ""}
-                    </div>
+                    {/* Image preview */}
+                    {hasImages && outputData.images![0] && (
+                        <div className="relative rounded overflow-hidden bg-gray-100">
+                            <img
+                                src={outputData.images![0].url}
+                                alt="Generated"
+                                className="w-full h-24 object-cover"
+                                onError={(e) => {
+                                    (e.target as HTMLImageElement).src = "https://placehold.co/200x100/1a1a2e/eaeaea?text=Image";
+                                }}
+                            />
+                            {outputData.images!.length > 1 && (
+                                <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/60 rounded text-[10px] text-white">
+                                    +{outputData.images!.length - 1} more
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
+                    {/* Text preview - only if not images */}
+                    {!hasImages && outputData?.content && (
+                        <div className="p-2 bg-gray-50 rounded text-xs text-gray-600 font-mono max-h-[60px] overflow-hidden">
+                            {outputData.content.substring(0, 150)}{outputData.content.length > 150 ? "..." : ""}
+                        </div>
+                    )}
                     
                     {/* Action buttons */}
                     <div className="flex gap-2">
@@ -446,15 +468,17 @@ const OutputViewer = memo(({ nodeId, nodeType, outputData, onViewClick }: Output
                             className="flex-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
                         >
                             <HiEye className="w-3.5 h-3.5" />
-                            View Full Output
+                            {hasImages ? "View Image" : "View Full Output"}
                         </button>
-                        <button
-                            onClick={handleDownload}
-                            className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5"
-                        >
-                            <HiDocumentArrowDown className="w-3.5 h-3.5" />
-                            {nodeType === "spreadsheet" ? "CSV" : "Download"}
-                        </button>
+                        {!hasImages && (
+                            <button
+                                onClick={handleDownload}
+                                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5"
+                            >
+                                <HiDocumentArrowDown className="w-3.5 h-3.5" />
+                                {nodeType === "spreadsheet" ? "CSV" : "Download"}
+                            </button>
+                        )}
                     </div>
                 </div>
             ) : (
