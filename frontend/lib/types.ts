@@ -9,7 +9,7 @@ import { NodeSettings } from "./nodes";
 // Node Data Types
 // =============================================================================
 
-export interface WorkflowNodeData {
+export interface WorkflowNodeData extends Record<string, unknown> {
     nodeType: string;
     label: string;
     settings?: NodeSettings;
