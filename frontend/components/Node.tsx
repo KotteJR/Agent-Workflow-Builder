@@ -94,19 +94,17 @@ export const WorkflowNode = memo(({ id, data, selected }: NodeProps<Node>) => {
                         className={`w-9 h-9 rounded-lg ${nodeConfig.color} flex items-center justify-center flex-shrink-0 border relative ${nodeData.executionState?.isExecuting ? "node-executing-indicator" : ""}`}
                     >
                         <Icon className="w-5 h-5" />
+                        {/* Executing ping indicator */}
+                        {nodeData.executionState?.isExecuting && (
+                            <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                            </span>
+                        )}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-900 truncate flex items-center gap-2">
+                        <div className="text-sm font-medium text-gray-900 truncate">
                             {nodeConfig.label}
-                            {nodeData.executionState?.isExecuting && (
-                                <span className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-medium">
-                                    <span className="relative flex h-2 w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                                    </span>
-                                    Running
-                                </span>
-                            )}
                         </div>
                         <div className="text-xs text-gray-500 capitalize">{nodeConfig.category}</div>
                     </div>
