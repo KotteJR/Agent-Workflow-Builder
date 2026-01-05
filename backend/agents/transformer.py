@@ -26,14 +26,31 @@ class TransformerAgent(BaseAgent):
     display_name = "Transformer Agent"
     default_model = "large"  # Use large model by default for better understanding
     
-    SYSTEM_PROMPT_COMPREHENSIVE = """You are an expert Data Analyst and Transformer Agent. Your task is to deeply analyze a document and extract ALL meaningful structured data into {to_format} format.
+    SYSTEM_PROMPT_COMPREHENSIVE = """You are an expert Data Analyst and Transformer Agent. Your task is to deeply analyze ANY type of document and extract ALL meaningful structured data into {to_format} format.
 
-DOCUMENT ANALYSIS APPROACH:
-1. First, thoroughly read and understand the entire document
-2. Identify ALL entities: people, organizations, dates, numbers, concepts, relationships
-3. Find ALL structured data: tables, lists, key-value pairs, metadata
-4. Extract implicit information and relationships
-5. Organize into a comprehensive, well-structured output
+STEP 1 - DOCUMENT TYPE DETECTION:
+First, identify what type of document this is:
+- Invoice/Receipt: Extract line items, amounts, dates, vendor info, totals
+- Contract/Agreement: Extract parties, terms, dates, obligations, clauses
+- Resume/CV: Extract contact info, experience entries, education, skills
+- Report/Analysis: Extract findings, metrics, recommendations, summaries
+- Form/Application: Extract all field-value pairs
+- Academic Paper: Extract title, authors, abstract, findings, citations
+- Meeting Notes: Extract attendees, decisions, action items, dates
+- Product Spec: Extract features, requirements, specifications
+- Financial Statement: Extract accounts, balances, periods, transactions
+- Email/Letter: Extract sender, recipient, subject, key points, dates
+- List/Catalog: Extract all items with their attributes
+- Technical Documentation: Extract procedures, parameters, specifications
+- ANY OTHER: Intelligently determine the best structure
+
+STEP 2 - INTELLIGENT EXTRACTION:
+1. Thoroughly read and understand the ENTIRE document
+2. Identify the document's purpose and structure
+3. Find ALL entities: people, organizations, dates, numbers, amounts, locations
+4. Extract ALL structured data: tables, lists, key-value pairs, metadata
+5. Capture relationships between entities
+6. Include context that gives meaning to the data
 
 {custom_columns_instruction}
 
@@ -42,14 +59,22 @@ EXTRACTION REQUIREMENTS ({extraction_depth} depth):
 
 CSV OUTPUT REQUIREMENTS:
 - First row MUST be descriptive column headers
-- Each row represents one entity/record/item
+- Each row represents one record/item/entry
 - Use proper CSV escaping (quotes around text with commas)
-- Include ALL relevant data points, not just surface-level information
-- If document has multiple sections, extract data from ALL sections
-- Create logical groupings - if a paper, extract: title, authors (each author), affiliations, abstract, key findings, methodology, citations, dates, etc.
-- For academic papers: extract research questions, hypotheses, conclusions, limitations
-- For reports: extract executive summary, key metrics, recommendations, timelines
-- For documents with tables: preserve table structure in CSV format
+- EXTRACT EVERY PIECE OF MEANINGFUL DATA
+- If document has tables: each table row becomes a CSV row
+- If document has lists: each list item becomes a row
+- If document has repeated structures: each instance is a row
+- Include IDs, names, descriptions, quantities, amounts, dates, statuses
+- Preserve hierarchical relationships (use Category/Section columns)
+- Don't skip anything - if it's data, extract it
+
+DOCUMENT-SPECIFIC GUIDANCE:
+- Invoices: Item, Description, Quantity, Unit Price, Amount, Tax, Vendor, Date, Invoice#
+- Contracts: Section, Clause, Party, Obligation, Date, Term, Condition
+- Resumes: Section, Company/School, Role/Degree, Date Range, Details, Location
+- Reports: Section, Finding, Metric, Value, Recommendation, Priority
+- Forms: Field Name, Field Value, Section, Required, Notes
 
 {supervisor_guidance}
 
@@ -57,22 +82,29 @@ OUTPUT FORMAT: {to_format}
 Output ONLY the structured data. No explanations, no markdown code blocks."""
 
     DEPTH_BASIC = """- Extract main entities and primary data points
-- Focus on clearly stated information
-- Create 5-10 columns of key data"""
+- Focus on clearly visible/stated information
+- Create 5-10 columns of essential data
+- One row per main item/entry"""
 
     DEPTH_DETAILED = """- Extract main and secondary entities
-- Include context and relationships
-- Create 10-20 columns covering major aspects
-- Include metadata (dates, sources, references)"""
+- Include context, relationships, and metadata
+- Create 10-20 columns covering all major aspects
+- Capture dates, amounts, names, descriptions
+- Extract data from tables and lists
+- Include category/section information"""
 
-    DEPTH_COMPREHENSIVE = """- Extract EVERYTHING: main entities, secondary entities, relationships, metadata
-- Analyze implicit information and connections
-- Create 20+ columns when data supports it
-- Include: identifiers, names, descriptions, categories, dates, quantities, sources, relationships, status, notes
-- For each entity, capture ALL available attributes
-- Extract structured data from any tables, lists, or formatted sections
-- Identify and capture hierarchical relationships
-- Include citation information, references, and cross-references"""
+    DEPTH_COMPREHENSIVE = """- Extract ABSOLUTELY EVERYTHING from the document
+- Create as many columns as needed (20+ when data supports)
+- EVERY table becomes rows with all columns preserved
+- EVERY list item becomes a row with full details
+- EVERY form field is captured
+- Include: IDs, names, descriptions, categories, types, dates, amounts, quantities, units, statuses, notes, references
+- Capture relationships (parent-child, belongs-to, related-to)
+- Extract metadata: document date, author, version, source
+- Include calculated fields if present (totals, averages, percentages)
+- Preserve hierarchy using Category/Section/Subsection columns
+- If multiple entities: each gets its own row with all attributes
+- Nothing should be omitted - if it's in the document, extract it"""
 
     async def execute(
         self,
