@@ -364,17 +364,23 @@ const UploadEditor = memo(({ nodeId, uploadedFiles, uploadInstruction, onDataCha
                 </div>
             )}
 
-            {/* Instructions for uploaded files */}
+            {/* Optional instructions for uploaded files */}
             {uploadedFiles.length > 0 && (
                 <div className="mt-3">
-                    <textarea
-                        value={instruction}
-                        onChange={handleInstructionChange}
-                        onFocus={(e) => e.stopPropagation()}
-                        placeholder="What should I do with these files? (e.g., Convert to spreadsheet, Extract key data, Summarize...)"
-                        className="w-full min-h-[60px] max-h-[120px] px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                        style={{ fieldSizing: "content" } as any}
-                    />
+                    <details className="group">
+                        <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700 flex items-center gap-1">
+                            <span className="group-open:rotate-90 transition-transform">▶</span>
+                            Add custom instructions (optional)
+                        </summary>
+                        <textarea
+                            value={instruction}
+                            onChange={handleInstructionChange}
+                            onFocus={(e) => e.stopPropagation()}
+                            placeholder="Leave empty for automatic processing, or add specific instructions..."
+                            className="mt-2 w-full min-h-[50px] max-h-[100px] px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                            style={{ fieldSizing: "content" } as any}
+                        />
+                    </details>
                 </div>
             )}
         </div>

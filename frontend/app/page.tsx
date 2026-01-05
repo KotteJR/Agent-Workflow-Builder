@@ -355,20 +355,36 @@ function FlowCanvas() {
         let query = "";
         let hasUpload = false;
         let uploadNode: Node | undefined;
+        let hasSpreadsheet = false;
+        let hasTransformer = false;
         
+        // First pass: identify workflow structure
         for (const node of nodes) {
             const nodeData = node.data as WorkflowNodeData;
+            if (nodeData.nodeType === "spreadsheet") hasSpreadsheet = true;
+            if (nodeData.nodeType === "transformer") hasTransformer = true;
             if (nodeData.nodeType === "prompt") {
                 query = nodeData.promptText || "";
             } else if (nodeData.nodeType === "upload") {
                 hasUpload = true;
                 uploadNode = node;
-                const uploadData = node.data as WorkflowNodeData;
-                const fileCount = uploadData.uploadedFiles?.length || 0;
-                if (fileCount > 0) {
-                    // Use custom instruction if provided, otherwise use default
-                    query = uploadData.uploadInstruction || 
-                        "Process and analyze the uploaded document(s). Extract key information and provide a structured summary.";
+            }
+        }
+        
+        // Determine query based on workflow structure if not provided
+        if (hasUpload && uploadNode) {
+            const uploadData = uploadNode.data as WorkflowNodeData;
+            const fileCount = uploadData.uploadedFiles?.length || 0;
+            if (fileCount > 0) {
+                // Use custom instruction if provided
+                if (uploadData.uploadInstruction && uploadData.uploadInstruction.trim()) {
+                    query = uploadData.uploadInstruction;
+                }
+                // Otherwise, auto-detect based on workflow
+                else if (hasSpreadsheet || hasTransformer) {
+                    query = "Analyze the uploaded document and extract ALL data into a structured format. Identify the document type and extract every piece of meaningful information.";
+                } else {
+                    query = "Analyze the uploaded document and provide a comprehensive summary.";
                 }
             }
         }

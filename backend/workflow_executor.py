@@ -558,9 +558,19 @@ async def _execute_agent(
     else:
         model = small_model
     
-    # Add downstream nodes to context for supervisor
+    # Add downstream node TYPES to context for supervisor (so it understands workflow structure)
     if node_type == "supervisor":
-        context["downstream_nodes"] = list(reachable_nodes)
+        # Get the node types, not IDs - supervisor needs to know what's in the workflow
+        downstream_types = set()
+        for nid in reachable_nodes:
+            # Extract type from node ID (format: "type-timestamp")
+            if "-" in nid:
+                ntype = nid.rsplit("-", 1)[0]
+                downstream_types.add(ntype)
+            else:
+                downstream_types.add(nid)
+        context["downstream_nodes"] = list(downstream_types)
+        print(f"[SUPERVISOR] Downstream node types: {downstream_types}")
     
     # Add available tools to context for orchestrator
     if node_type == "orchestrator":
