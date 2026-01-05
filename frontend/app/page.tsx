@@ -62,7 +62,7 @@ let lastNodeId = "";
 function FlowCanvas() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
     const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
-    const [nodes, setNodes, onNodesChange] = useNodesState<Node<WorkflowNodeData>>([]);
+    const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
     // UI state
@@ -113,7 +113,7 @@ function FlowCanvas() {
         y: event.clientY,
       });
 
-            const newNode: Node<WorkflowNodeData> = {
+            const newNode: Node = {
         id: `${nodeType}-${Date.now()}`,
         type: "workflow",
         position,
@@ -148,8 +148,9 @@ function FlowCanvas() {
     );
 
     const handleNodeClick = useCallback(
-        (_: React.MouseEvent, node: Node<WorkflowNodeData>) => {
-            const nodeConfig = NODE_TYPES.find((n) => n.id === node.data.nodeType);
+        (_: React.MouseEvent, node: Node) => {
+            const nodeData = node.data as WorkflowNodeData;
+            const nodeConfig = NODE_TYPES.find((n) => n.id === nodeData.nodeType);
             if (nodeConfig?.hasSettings) {
                 const now = Date.now();
                 // Detect double-click
@@ -184,16 +185,19 @@ function FlowCanvas() {
 
     const confirmSaveWorkflow = useCallback(async () => {
         try {
-            const workflowNodes: ApiWorkflowNode[] = nodes.map((node) => ({
-                id: node.id,
-                type: node.type || "workflow",
-                position: node.position,
-                data: {
-                    nodeType: node.data.nodeType,
-                    label: node.data.label,
-                    settings: node.data.settings,
-                },
-            }));
+            const workflowNodes: ApiWorkflowNode[] = nodes.map((node) => {
+                const nodeData = node.data as WorkflowNodeData;
+                return {
+                    id: node.id,
+                    type: node.type || "workflow",
+                    position: node.position,
+                    data: {
+                        nodeType: nodeData.nodeType,
+                        label: nodeData.label,
+                        settings: nodeData.settings,
+                    },
+                };
+            });
 
             const workflowEdges: ApiWorkflowEdge[] = edges.map((edge) => ({
                 id: edge.id,
@@ -222,7 +226,7 @@ function FlowCanvas() {
             try {
                 const workflow = await loadWorkflow(workflowId);
 
-                const newNodes: Node<WorkflowNodeData>[] = workflow.nodes.map((node) => ({
+                const newNodes: Node[] = workflow.nodes.map((node) => ({
                     id: node.id,
                     type: node.type || "workflow",
                     position: node.position,
@@ -259,7 +263,7 @@ function FlowCanvas() {
 
     const handleLoadFromChat = useCallback(
         (workflow: Workflow) => {
-            const newNodes: Node<WorkflowNodeData>[] = workflow.nodes.map((node) => ({
+            const newNodes: Node[] = workflow.nodes.map((node) => ({
                 id: node.id,
                 type: node.type || "workflow",
                 position: node.position,
@@ -311,16 +315,19 @@ function FlowCanvas() {
         setRunResult(null);
 
         try {
-            const workflowNodes = nodes.map((node) => ({
-                id: node.id,
-                type: node.type || "workflow",
-                position: node.position,
-                data: {
-                    nodeType: node.data.nodeType,
-                    label: node.data.label,
-                    settings: node.data.settings,
-                },
-            }));
+            const workflowNodes = nodes.map((node) => {
+                const nodeData = node.data as WorkflowNodeData;
+                return {
+                    id: node.id,
+                    type: node.type || "workflow",
+                    position: node.position,
+                    data: {
+                        nodeType: nodeData.nodeType,
+                        label: nodeData.label,
+                        settings: nodeData.settings,
+                    },
+                };
+            });
 
             const workflowEdges = edges.map((edge) => ({
                 id: edge.id,
@@ -432,8 +439,8 @@ function FlowCanvas() {
             {selectedNode && (
                 <NodeSettingsPanel
                     nodeId={selectedNode.id}
-                    nodeType={selectedNode.data.nodeType}
-                    currentSettings={selectedNode.data.settings}
+                    nodeType={(selectedNode.data as WorkflowNodeData).nodeType}
+                    currentSettings={(selectedNode.data as WorkflowNodeData).settings}
                     onClose={() => setSettingsNodeId(null)}
                     onSave={(settings) => handleSaveSettings(selectedNode.id, settings)}
                 />

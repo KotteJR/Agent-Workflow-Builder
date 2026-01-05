@@ -4,11 +4,13 @@ import { memo, useCallback } from "react";
 import { Handle, Position, NodeProps, useReactFlow } from "@xyflow/react";
 import { NODE_TYPES, NodeSettings } from "@/lib/nodes";
 import { HiXMark, HiCog6Tooth } from "react-icons/hi2";
-import type { WorkflowNodeData, WorkflowNode } from "@/lib/types";
+import type { WorkflowNodeData } from "@/lib/types";
+import type { Node } from "@xyflow/react";
 
-export const WorkflowNode = memo(({ id, data, selected }: NodeProps<WorkflowNode>) => {
+export const WorkflowNode = memo(({ id, data, selected }: NodeProps<Node>) => {
     const { deleteElements } = useReactFlow();
-    const nodeConfig = NODE_TYPES.find((n) => n.id === data.nodeType);
+    const nodeData = data as WorkflowNodeData;
+    const nodeConfig = NODE_TYPES.find((n) => n.id === nodeData.nodeType);
 
     const handleDelete = useCallback(
         (e: React.MouseEvent) => {
@@ -22,11 +24,11 @@ export const WorkflowNode = memo(({ id, data, selected }: NodeProps<WorkflowNode
         (e: React.MouseEvent) => {
             e.stopPropagation();
             e.preventDefault();
-            if (data.onSettingsClick) {
-                data.onSettingsClick(id);
+            if (nodeData.onSettingsClick) {
+                nodeData.onSettingsClick(id);
             }
         },
-        [data, id]
+        [nodeData, id]
     );
 
     if (!nodeConfig) return null;

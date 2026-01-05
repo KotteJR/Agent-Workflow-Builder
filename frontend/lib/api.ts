@@ -12,7 +12,13 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export type { ApiWorkflow as Workflow, ApiWorkflowNode as WorkflowNode, ApiWorkflowEdge as WorkflowEdge };
+export type { 
+    ApiWorkflow as Workflow, 
+    ApiWorkflowNode as WorkflowNode, 
+    ApiWorkflowEdge as WorkflowEdge,
+    WorkflowListItem,
+    WorkflowExecutionResult,
+};
 
 export interface WorkflowBuildResult {
     explanation: string;
