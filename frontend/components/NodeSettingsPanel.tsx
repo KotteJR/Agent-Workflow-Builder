@@ -166,6 +166,13 @@ export const NodeSettingsPanel = memo(function NodeSettingsPanel({
                                 ]}
                                 helpText="How aggressively to optimize workflow execution"
                             />
+                            <TextareaSetting
+                                label="Supervisor Instructions"
+                                value={settings.supervisorPrompt ?? ""}
+                                onChange={(v) => setSettings({ ...settings, supervisorPrompt: v })}
+                                placeholder="Enter specific instructions for what the supervisor should focus on..."
+                                helpText="Additional context or specific instructions for the supervisor agent"
+                            />
                         </div>
                     )}
 
@@ -407,6 +414,35 @@ const CheckboxSetting = memo(function CheckboxSetting({
                 />
                 <span className="text-sm font-medium text-gray-700">{label}</span>
             </label>
+            {helpText && <p className="mt-1 text-xs text-gray-500">{helpText}</p>}
+        </div>
+    );
+});
+
+interface TextareaSettingProps {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    helpText?: string;
+}
+
+const TextareaSetting = memo(function TextareaSetting({
+    label,
+    value,
+    onChange,
+    placeholder,
+    helpText,
+}: TextareaSettingProps) {
+    return (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+            <textarea
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[100px] resize-y"
+                placeholder={placeholder}
+            />
             {helpText && <p className="mt-1 text-xs text-gray-500">{helpText}</p>}
         </div>
     );

@@ -40,10 +40,10 @@ AGENT_REGISTRY = {
 }
 
 # Input node types (don't require agents)
-INPUT_NODE_TYPES = {"prompt", "upload", "spreadsheet"}
+INPUT_NODE_TYPES = {"prompt", "upload"}
 
 # Output node types (don't require agents)
-OUTPUT_NODE_TYPES = {"response"}
+OUTPUT_NODE_TYPES = {"response", "spreadsheet"}
 
 
 def topological_sort(nodes: List[str], edges: List[Dict[str, str]]) -> List[str]:
@@ -209,31 +209,81 @@ async def execute_workflow(
             node_type = node_data.get("nodeType", node_id.split("-")[0])
             node_settings = node_data.get("settings", {})
             
-            # Skip input/output nodes (they don't have agents)
+            # Handle input nodes
             if node_type in INPUT_NODE_TYPES:
                 executed_nodes.add(node_id)
-                yield _sse_event("agent_complete", {
-                    "agent": node_id,
-                    "step": {
-                        "agent": node_type,
-                        "model": "none",
-                        "action": "input",
-                        "content": user_message,
-                    }
-                })
+                
+                # Extract content from input nodes
+                if node_type == "upload":
+                    # Get uploaded files from node data
+                    uploaded_files = node_data.get("uploadedFiles", [])
+                    if uploaded_files:
+                        # Extract file content for context
+                        file_contents = []
+                        for file_info in uploaded_files:
+                            file_name = file_info.get("name", "unknown")
+                            file_content = file_info.get("content", "")
+                            if file_content:
+                                file_contents.append(f"[File: {file_name}]\n{file_content[:5000]}")  # Limit content size
+                        
+                        if file_contents:
+                            context["uploaded_file_content"] = "\n\n".join(file_contents)
+                            context["user_message"] = f"{user_message}\n\nUploaded files:\n{context['uploaded_file_content']}"
+                    
+                    yield _sse_event("agent_complete", {
+                        "agent": node_id,
+                        "step": {
+                            "agent": node_type,
+                            "model": "none",
+                            "action": "input",
+                            "content": f"Uploaded {len(uploaded_files)} file(s)",
+                        }
+                    })
+                else:
+                    # Prompt node - use promptText if available, otherwise user_message
+                    prompt_text = node_data.get("promptText", user_message)
+                    if prompt_text:
+                        context["user_message"] = prompt_text
+                    
+                    yield _sse_event("agent_complete", {
+                        "agent": node_id,
+                        "step": {
+                            "agent": node_type,
+                            "model": "none",
+                            "action": "input",
+                            "content": prompt_text or user_message,
+                        }
+                    })
                 continue
             
             if node_type in OUTPUT_NODE_TYPES:
                 executed_nodes.add(node_id)
-                yield _sse_event("agent_complete", {
-                    "agent": node_id,
-                    "step": {
-                        "agent": node_type,
-                        "model": "none",
-                        "action": "output",
-                        "content": context.get("final_answer", ""),
-                    }
-                })
+                final_content = context.get("final_answer", "")
+                
+                # For spreadsheet output, format as CSV/table data
+                if node_type == "spreadsheet":
+                    # Store spreadsheet flag for final output
+                    context["output_format"] = "spreadsheet"
+                    yield _sse_event("agent_complete", {
+                        "agent": node_id,
+                        "step": {
+                            "agent": node_type,
+                            "model": "none",
+                            "action": "spreadsheet_output",
+                            "content": final_content,
+                            "format": "spreadsheet",
+                        }
+                    })
+                else:
+                    yield _sse_event("agent_complete", {
+                        "agent": node_id,
+                        "step": {
+                            "agent": node_type,
+                            "model": "none",
+                            "action": "output",
+                            "content": final_content,
+                        }
+                    })
                 continue
             
             # Check dependencies
@@ -295,9 +345,12 @@ async def execute_workflow(
             # Execute the agent
             yield _sse_event("agent_start", {"agent": node_id, "status": "working"})
             
+            # Use context user_message (which may include uploaded file content)
+            effective_message = context.get("user_message", user_message)
+            
             result = await _execute_agent(
                 node_type=node_type,
-                user_message=user_message,
+                user_message=effective_message,
                 context=context,
                 settings=node_settings,
                 llm_client=llm_client,
@@ -369,11 +422,15 @@ async def execute_workflow(
             "docs": context.get("docs", []),
         }
         
+        # Check if spreadsheet output was requested
+        output_format = context.get("output_format", "text")
+        
         yield _sse_event("done", {
             "answer": final_answer,
             "tool_outputs": final_tool_outputs,
             "trace": {"steps": steps},
             "latency_ms": workflow_latency,
+            "output_format": output_format,
         })
         
     except Exception as exc:

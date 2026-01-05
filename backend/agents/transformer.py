@@ -31,6 +31,8 @@ class TransformerAgent(BaseAgent):
 SOURCE FORMAT: {from_format}
 TARGET FORMAT: {to_format}
 
+{supervisor_guidance}
+
 REQUIREMENTS:
 - Convert the data structure accurately
 - Preserve all data values and relationships
@@ -38,7 +40,17 @@ REQUIREMENTS:
 - Create valid {to_format} output
 - If source format is unclear, infer the structure
 
-Output ONLY the transformed data in {to_format} format, no explanations."""
+SPECIAL INSTRUCTIONS FOR CSV OUTPUT:
+- Extract ALL meaningful data into structured rows and columns
+- Use comma as delimiter
+- First row MUST be headers describing each column
+- Create columns for: names, dates, numbers, categories, descriptions, values
+- For PDF/text documents: identify tables, lists, key-value pairs
+- Extract entities: people, organizations, amounts, dates, locations
+- If document has sections, create a column for section/category
+- IMPORTANT: Output MUST be valid CSV that can be opened in Excel
+
+Output ONLY the transformed data in {to_format} format. No explanations, no markdown code blocks, just raw {to_format} data."""
 
     async def execute(
         self,
@@ -60,16 +72,21 @@ Output ONLY the transformed data in {to_format} format, no explanations."""
             AgentResult with transformed data
         """
         settings = settings or {}
-        from_format = settings.get("fromFormat", "json")
-        to_format = settings.get("toFormat", "xml")
+        from_format = settings.get("fromFormat", "text")
+        to_format = settings.get("toFormat", "csv")
         
-        # Get content to transform from context
+        # Get content to transform from context - check multiple sources
         content_to_transform = context.get("input_content")
+        if not content_to_transform:
+            content_to_transform = context.get("uploaded_file_content")  # From upload node
         if not content_to_transform:
             content_to_transform = context.get("final_answer")
         if not content_to_transform:
             snippets = context.get("context_snippets", [])
             content_to_transform = "\n\n".join(snippets) if snippets else ""
+        if not content_to_transform:
+            # Last resort: use the user message which may contain file content
+            content_to_transform = context.get("user_message", "")
         
         if not content_to_transform:
             return AgentResult(
@@ -81,10 +98,16 @@ Output ONLY the transformed data in {to_format} format, no explanations."""
                 metadata={"error": "No input content"},
             )
         
+        # Get supervisor guidance if available
+        supervisor_guidance = context.get("supervisor_guidance", "")
+        if supervisor_guidance:
+            supervisor_guidance = f"SUPERVISOR INSTRUCTIONS:\n{supervisor_guidance}\n"
+        
         system_prompt = self._build_system_prompt(
             self.SYSTEM_PROMPT_TEMPLATE,
             from_format=from_format.upper(),
             to_format=to_format.upper(),
+            supervisor_guidance=supervisor_guidance,
         )
         
         user_prompt = f"""Source data ({from_format}):
@@ -127,6 +150,8 @@ Transform this to {to_format} format."""
             context_updates={
                 "transformed_content": transformed,
                 "input_content": transformed,  # Pass transformed content to next node
+                "final_answer": transformed,  # Set as final answer for output nodes
             },
         )
+
 

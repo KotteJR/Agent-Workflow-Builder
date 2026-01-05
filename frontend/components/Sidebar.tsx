@@ -33,7 +33,7 @@ export function Sidebar({ onDragStart }: SidebarProps) {
             {/* Inner Container for content overflow */}
             <div className="flex-1 overflow-hidden flex flex-col w-full rounded-2xl">
                 {/* Node List */}
-                <div className={`flex-1 overflow-y-auto overflow-x-hidden p-3 ${isExpanded ? 'space-y-4' : 'space-y-3'}`}>
+                <div className={`flex-1 overflow-y-auto overflow-x-hidden p-3 scrollbar-hide ${isExpanded ? 'space-y-4' : 'space-y-3'}`}>
                     {NODE_TYPES.map((node) => {
                         const Icon = node.icon;
 

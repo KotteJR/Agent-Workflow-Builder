@@ -26,7 +26,7 @@ import { WorkflowSidebar } from "@/components/WorkflowSidebar";
 import DeletableEdge from "@/components/DeletableEdge";
 import { NodeSettingsPanel } from "@/components/NodeSettingsPanel";
 import { SaveWorkflowModal } from "@/components/modals/SaveWorkflowModal";
-import { RunWorkflowModal } from "@/components/modals/RunWorkflowModal";
+import { NodeExecutionModal } from "@/components/modals/NodeExecutionModal";
 import { NODE_TYPES, NodeSettings } from "@/lib/nodes";
 import {
     saveWorkflow,
@@ -36,7 +36,8 @@ import {
     type WorkflowNode as ApiWorkflowNode,
     type WorkflowEdge as ApiWorkflowEdge,
 } from "@/lib/api";
-import type { WorkflowNodeData, WorkflowExecutionResult } from "@/lib/types";
+import type { WorkflowNodeData, WorkflowExecutionResult, NodeExecutionState, AgentStep, NodeOutputData, ExecutionHistoryItem } from "@/lib/types";
+import { OutputViewModal } from "@/components/modals/OutputViewModal";
 
 // Memoize node types to prevent re-renders
 const nodeTypes: NodeTypes = {
@@ -62,7 +63,7 @@ let lastNodeId = "";
 function FlowCanvas() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
     const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
-    const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
     // UI state
@@ -75,17 +76,47 @@ function FlowCanvas() {
 
     // Execution state
     const [isRunning, setIsRunning] = useState(false);
-    const [runningAgents, setRunningAgents] = useState<Set<string>>(new Set());
+    const [nodeExecutionStates, setNodeExecutionStates] = useState<Map<string, NodeExecutionState>>(new Map());
+    const [nodeExecutionSteps, setNodeExecutionSteps] = useState<Map<string, AgentStep>>(new Map());
+    const [nodeExecutionTimes, setNodeExecutionTimes] = useState<Map<string, number>>(new Map());
     const [runResult, setRunResult] = useState<WorkflowExecutionResult | null>(null);
+    const [executionHistory, setExecutionHistory] = useState<ExecutionHistoryItem[]>([]);
+
+    // Node outputs state (stored on output nodes)
+    const [nodeOutputs, setNodeOutputs] = useState<Map<string, NodeOutputData>>(new Map());
 
     // Modal state
     const [showSaveModal, setShowSaveModal] = useState(false);
-    const [showRunModal, setShowRunModal] = useState(false);
-    const [runQuery, setRunQuery] = useState("");
+    const [showNodeExecutionModal, setShowNodeExecutionModal] = useState(false);
+    const [selectedExecutionNodeId, setSelectedExecutionNodeId] = useState<string | null>(null);
+    const [showOutputModal, setShowOutputModal] = useState(false);
+    const [selectedOutputNodeId, setSelectedOutputNodeId] = useState<string | null>(null);
+
 
     // Callbacks
     const handleNodeSettingsClick = useCallback((nodeId: string) => {
         setSettingsNodeId(nodeId);
+    }, []);
+
+    const handleDataChange = useCallback(
+        (nodeId: string, data: Partial<WorkflowNodeData>) => {
+            setNodes((nds) =>
+                nds.map((node) =>
+                    node.id === nodeId ? { ...node, data: { ...node.data, ...data } } : node
+                )
+            );
+        },
+        [setNodes]
+    );
+
+    const handleExecutionClick = useCallback((nodeId: string) => {
+        setSelectedExecutionNodeId(nodeId);
+        setShowNodeExecutionModal(true);
+    }, []);
+
+    const handleOutputClick = useCallback((nodeId: string) => {
+        setSelectedOutputNodeId(nodeId);
+        setShowOutputModal(true);
     }, []);
 
   const onConnect = useCallback(
@@ -113,7 +144,7 @@ function FlowCanvas() {
         y: event.clientY,
       });
 
-            const newNode: Node = {
+      const newNode: Node = {
         id: `${nodeType}-${Date.now()}`,
         type: "workflow",
         position,
@@ -122,13 +153,16 @@ function FlowCanvas() {
           label: nodeConfig.label,
                     settings: nodeConfig.defaultSettings,
                     onSettingsClick: handleNodeSettingsClick,
+                    onDataChange: handleDataChange,
+                    promptText: nodeType === "prompt" ? "" : undefined,
+                    uploadedFiles: nodeType === "upload" ? [] : undefined,
         },
         dragHandle: ".drag-handle",
       };
 
             setNodes((nds) => [...nds, newNode]);
     },
-        [reactFlowInstance, setNodes, handleNodeSettingsClick]
+        [reactFlowInstance, setNodes, handleNodeSettingsClick, handleDataChange]
   );
 
   const onDragStart = useCallback((nodeType: string, event: React.DragEvent) => {
@@ -195,6 +229,8 @@ function FlowCanvas() {
                         nodeType: nodeData.nodeType,
                         label: nodeData.label,
                         settings: nodeData.settings,
+                        promptText: nodeData.promptText,
+                        uploadedFiles: nodeData.uploadedFiles,
                     },
                 };
             });
@@ -226,18 +262,24 @@ function FlowCanvas() {
             try {
                 const workflow = await loadWorkflow(workflowId);
 
-                const newNodes: Node[] = workflow.nodes.map((node) => ({
-                    id: node.id,
-                    type: node.type || "workflow",
-                    position: node.position,
-                    data: {
-                        nodeType: node.data.nodeType,
-                        label: node.data.label,
-                        settings: node.data.settings,
-                        onSettingsClick: handleNodeSettingsClick,
-                    },
-                    dragHandle: ".drag-handle",
-                }));
+                const newNodes: Node[] = workflow.nodes.map((node) => {
+                    const nodeData = node.data as any;
+                    return {
+                        id: node.id,
+                        type: node.type || "workflow",
+                        position: node.position,
+                        data: {
+                            nodeType: nodeData.nodeType,
+                            label: nodeData.label,
+                            settings: nodeData.settings,
+                            onSettingsClick: handleNodeSettingsClick,
+                            onDataChange: handleDataChange,
+                            promptText: nodeData.promptText,
+                            uploadedFiles: nodeData.uploadedFiles,
+                        },
+                        dragHandle: ".drag-handle",
+                    };
+                });
 
                 const newEdges: Edge[] = workflow.edges.map((edge) => ({
                     id: edge.id,
@@ -258,23 +300,29 @@ function FlowCanvas() {
                 alert("Failed to load workflow. Make sure the backend is running.");
             }
         },
-        [handleNodeSettingsClick, setNodes, setEdges]
+        [handleNodeSettingsClick, handleDataChange, setNodes, setEdges]
     );
 
     const handleLoadFromChat = useCallback(
         (workflow: Workflow) => {
-            const newNodes: Node[] = workflow.nodes.map((node) => ({
-                id: node.id,
-                type: node.type || "workflow",
-                position: node.position,
-                data: {
-                    nodeType: node.data.nodeType,
-                    label: node.data.label,
-                    settings: node.data.settings,
-                    onSettingsClick: handleNodeSettingsClick,
-                },
-                dragHandle: ".drag-handle",
-            }));
+            const newNodes: Node[] = workflow.nodes.map((node) => {
+                const nodeData = node.data as any;
+                return {
+                    id: node.id,
+                    type: node.type || "workflow",
+                    position: node.position,
+                    data: {
+                        nodeType: nodeData.nodeType,
+                        label: nodeData.label,
+                        settings: nodeData.settings,
+                        onSettingsClick: handleNodeSettingsClick,
+                        onDataChange: handleDataChange,
+                        promptText: nodeData.promptText,
+                        uploadedFiles: nodeData.uploadedFiles,
+                    },
+                    dragHandle: ".drag-handle",
+                };
+            });
 
             const newEdges: Edge[] = workflow.edges.map((edge) => ({
                 id: edge.id,
@@ -291,27 +339,57 @@ function FlowCanvas() {
             setCurrentWorkflowId(null);
             setWorkflowName(workflow.name || "AI Generated Workflow");
         },
-        [handleNodeSettingsClick, setNodes, setEdges]
+        [handleNodeSettingsClick, handleDataChange, setNodes, setEdges]
     );
 
-    // Execution
-    const handleRunWorkflow = useCallback(() => {
+    // Execution - runs directly without modal, using prompt/upload node content
+    const handleRunWorkflow = useCallback(async () => {
         if (nodes.length === 0) {
             alert("Add some nodes before running!");
             return;
         }
-        setShowRunModal(true);
-        setRunResult(null);
-    }, [nodes.length]);
 
-    const confirmRunWorkflow = useCallback(async () => {
-        if (!runQuery.trim()) {
-            alert("Please enter a query to run the workflow with.");
+        // Find input nodes and extract query
+        let query = "";
+        let hasUpload = false;
+        let uploadNode: Node | undefined;
+        
+        for (const node of nodes) {
+            const nodeData = node.data as WorkflowNodeData;
+            if (nodeData.nodeType === "prompt") {
+                query = nodeData.promptText || "";
+            } else if (nodeData.nodeType === "upload") {
+                hasUpload = true;
+                uploadNode = node;
+                const uploadData = node.data as WorkflowNodeData;
+                const fileCount = uploadData.uploadedFiles?.length || 0;
+                if (fileCount > 0) {
+                    // Use custom instruction if provided, otherwise use default
+                    query = uploadData.uploadInstruction || 
+                        "Process and analyze the uploaded document(s). Extract key information and provide a structured summary.";
+                }
+            }
+        }
+
+        if (!query && !hasUpload) {
+            alert("Please enter a prompt in the Prompt node before running.");
             return;
         }
 
+        if (hasUpload && uploadNode) {
+            // Check if files are uploaded
+            const uploadData = uploadNode.data as WorkflowNodeData;
+            if (!uploadData?.uploadedFiles?.length) {
+                alert("Please upload files in the Upload node before running.");
+                return;
+            }
+        }
+
         setIsRunning(true);
-        setRunningAgents(new Set());
+        setNodeExecutionStates(new Map());
+        setNodeExecutionSteps(new Map());
+        setNodeExecutionTimes(new Map());
+        setNodeOutputs(new Map()); // Clear previous outputs
         setRunResult(null);
 
         try {
@@ -325,6 +403,9 @@ function FlowCanvas() {
                         nodeType: nodeData.nodeType,
                         label: nodeData.label,
                         settings: nodeData.settings,
+                        promptText: nodeData.promptText,
+                        uploadedFiles: nodeData.uploadedFiles,
+                        uploadInstruction: nodeData.uploadInstruction,
                     },
                 };
             });
@@ -335,24 +416,103 @@ function FlowCanvas() {
                 target: edge.target,
             }));
 
-            await executeWorkflow(runQuery, workflowNodes, workflowEdges, (event, data) => {
+            await executeWorkflow(query, workflowNodes, workflowEdges, (event, data) => {
                 if (event === "agent_start") {
-                    const eventData = data as { agent: string };
-                    setRunningAgents((prev) => new Set(prev).add(eventData.agent));
+                    const eventData = data as { agent: string; status?: string };
+                    const nodeId = eventData.agent;
+                    const startTime = Date.now();
+                    
+                    setNodeExecutionStates((prev) => {
+                        const next = new Map(prev);
+                        next.set(nodeId, {
+                            isExecuting: true,
+                            startTime,
+                        });
+                        return next;
+                    });
                 } else if (event === "agent_complete") {
-                    const eventData = data as { agent: string };
-                    setRunningAgents((prev) => {
-                        const next = new Set(prev);
-                        next.delete(eventData.agent);
+                    const eventData = data as { agent: string; step?: AgentStep };
+                    const nodeId = eventData.agent;
+                    const step = eventData.step;
+                    
+                    setNodeExecutionStates((prev) => {
+                        const next = new Map(prev);
+                        const current = next.get(nodeId);
+                        const executionTime = current?.startTime ? Date.now() - current.startTime : undefined;
+                        
+                        if (current) {
+                            next.set(nodeId, {
+                                ...current,
+                                isExecuting: false,
+                                step,
+                            });
+                        }
+                        
+                        // Store step and execution time separately
+                        if (step) {
+                            setNodeExecutionSteps((prevSteps) => {
+                                const nextSteps = new Map(prevSteps);
+                                nextSteps.set(nodeId, step);
+                                return nextSteps;
+                            });
+                        }
+                        
+                        if (executionTime !== undefined) {
+                            setNodeExecutionTimes((prevTimes) => {
+                                const nextTimes = new Map(prevTimes);
+                                nextTimes.set(nodeId, executionTime);
+                                return nextTimes;
+                            });
+                        }
+                        
                         return next;
                     });
                 } else if (event === "done") {
-                    setRunResult(data as WorkflowExecutionResult);
+                    const result = data as WorkflowExecutionResult;
+                    setRunResult(result);
                     setIsRunning(false);
+                    
+                    // Store output on output nodes (response, spreadsheet)
+                    const outputContent = result.answer || "";
+                    const isSpreadsheet = (result as any).output_format === "spreadsheet";
+                    
+                    // Find output nodes and store the result
+                    const newOutputs = new Map<string, NodeOutputData>();
+                    for (const node of nodes) {
+                        const nodeData = node.data as WorkflowNodeData;
+                        if (nodeData.nodeType === "response" || nodeData.nodeType === "spreadsheet") {
+                            newOutputs.set(node.id, {
+                                content: outputContent,
+                                format: isSpreadsheet ? "spreadsheet" : "text",
+                                timestamp: Date.now(),
+                            });
+                        }
+                    }
+                    setNodeOutputs(newOutputs);
+                    
+                    // Save to execution history
+                    const historyItem: ExecutionHistoryItem = {
+                        id: `exec-${Date.now()}`,
+                        timestamp: Date.now(),
+                        workflowName: workflowName,
+                        query: query,
+                        result: result,
+                        nodeOutputs: new Map(nodeExecutionSteps),
+                        duration: result.latency_ms || 0,
+                    };
+                    setExecutionHistory((prev) => [historyItem, ...prev].slice(0, 50));
+                    
+                    // Clear execution states after a short delay
+                    setTimeout(() => {
+                        setNodeExecutionStates(new Map());
+                    }, 2000);
                 } else if (event === "error") {
                     const eventData = data as { message: string };
                     alert(`Workflow error: ${eventData.message}`);
                     setIsRunning(false);
+                    setNodeExecutionStates(new Map());
+                    setNodeExecutionSteps(new Map());
+                    setNodeExecutionTimes(new Map());
                 }
             });
         } catch (error) {
@@ -360,25 +520,29 @@ function FlowCanvas() {
             alert("Failed to run workflow. Make sure the backend is running.");
             setIsRunning(false);
         }
-    }, [nodes, edges, runQuery]);
-
-    const handleCloseRunModal = useCallback(() => {
-        setShowRunModal(false);
-        setRunQuery("");
-        setRunResult(null);
-    }, []);
+    }, [nodes, edges, workflowName, nodeExecutionSteps]);
 
     // Memoized values
     const nodesWithSettings = useMemo(
         () =>
-            nodes.map((node) => ({
-                ...node,
-                data: {
-                    ...node.data,
-                    onSettingsClick: handleNodeSettingsClick,
-                },
-            })),
-        [nodes, handleNodeSettingsClick]
+            nodes.map((node) => {
+                const nodeData = node.data as WorkflowNodeData;
+                const executionState = nodeExecutionStates.get(node.id);
+                const outputData = nodeOutputs.get(node.id);
+                return {
+                    ...node,
+                    data: {
+                        ...nodeData,
+                        onSettingsClick: handleNodeSettingsClick,
+                        onDataChange: handleDataChange,
+                        executionState,
+                        onExecutionClick: handleExecutionClick,
+                        outputData,
+                        onOutputClick: handleOutputClick,
+                    },
+                };
+            }),
+        [nodes, handleNodeSettingsClick, handleDataChange, nodeExecutionStates, handleExecutionClick, nodeOutputs, handleOutputClick]
     );
 
     const selectedNode = useMemo(
@@ -428,6 +592,7 @@ function FlowCanvas() {
                 onRunWorkflow={handleRunWorkflow}
                 isRunning={isRunning}
                 currentWorkflowId={currentWorkflowId}
+                executionHistory={executionHistory}
             />
 
             {isChatOpen && (
@@ -454,16 +619,32 @@ function FlowCanvas() {
                 onClose={() => setShowSaveModal(false)}
             />
 
-            <RunWorkflowModal
-                isOpen={showRunModal}
-                query={runQuery}
-                onQueryChange={setRunQuery}
-                isRunning={isRunning}
-                runningAgents={runningAgents}
-                result={runResult}
-                onRun={confirmRunWorkflow}
-                onClose={handleCloseRunModal}
-            />
+            {selectedExecutionNodeId && (
+                <NodeExecutionModal
+                    isOpen={showNodeExecutionModal}
+                    onClose={() => {
+                        setShowNodeExecutionModal(false);
+                        setSelectedExecutionNodeId(null);
+                    }}
+                    nodeId={selectedExecutionNodeId}
+                    nodeLabel={(nodesWithSettings.find((n) => n.id === selectedExecutionNodeId)?.data as WorkflowNodeData)?.label || "Node"}
+                    step={nodeExecutionSteps.get(selectedExecutionNodeId)}
+                    executionTime={nodeExecutionTimes.get(selectedExecutionNodeId)}
+                />
+            )}
+
+            {selectedOutputNodeId && (
+                <OutputViewModal
+                    isOpen={showOutputModal}
+                    onClose={() => {
+                        setShowOutputModal(false);
+                        setSelectedOutputNodeId(null);
+                    }}
+                    nodeId={selectedOutputNodeId}
+                    nodeType={(nodesWithSettings.find((n) => n.id === selectedOutputNodeId)?.data as WorkflowNodeData)?.nodeType || "response"}
+                    outputData={nodeOutputs.get(selectedOutputNodeId)}
+                />
+            )}
     </div>
   );
 }

@@ -27,27 +27,29 @@ class SupervisorAgent(BaseAgent):
     display_name = "Supervisor Agent"
     default_model = "small"
     
-    SYSTEM_PROMPT_TEMPLATE = """You are a Supervisor Agent analyzing a user's question to plan workflow execution.
+    SYSTEM_PROMPT_TEMPLATE = """You are a Supervisor Agent analyzing a user's request to plan and guide workflow execution.
 
 Available downstream nodes in this workflow:
 {available_nodes}
 
 Your planning style: {planning_style}
 Optimization level: {optimization_level}
+{supervisor_instructions}
 
-Analyze the user's question and provide:
-1. A brief execution plan (how to answer the question using available nodes)
-2. Search guidance: What specific topics, concepts, or keywords should be searched
-3. Node recommendations: Which nodes should be activated and in what order
+TASK TYPE DETECTION:
+- FILE TRANSFORMATION: If the request involves converting, transforming, or extracting data from files (PDF, CSV, etc.), focus on guiding the transformation process.
+- ANALYSIS/SEARCH: If the request involves answering questions or finding information, provide search guidance.
 
-Respond in JSON format:
-{{
-    "plan": "Brief plan for answering the question",
-    "search_guidance": "Specific topics, concepts, or keywords to search for",
-    "recommended_nodes": ["node1", "node2"],
-    "parallel_opportunities": ["nodes that can run in parallel"],
-    "reasoning": "Why this plan is optimal"
-}}"""
+For FILE TRANSFORMATION tasks:
+- Provide clear instructions on what to extract or convert
+- Specify the desired output format and structure
+- Describe what columns/fields should be created
+
+For ANALYSIS/SEARCH tasks:
+- Provide search guidance for finding relevant information
+- Recommend which nodes to use
+
+OUTPUT: Provide a clear, actionable plan that guides downstream agents. Be specific about what should be done with the content."""
 
     async def execute(
         self,
@@ -71,16 +73,23 @@ Respond in JSON format:
         settings = settings or {}
         planning_style = settings.get("planningStyle", "optimized")
         optimization_level = settings.get("optimizationLevel", "basic")
+        supervisor_prompt = settings.get("supervisorPrompt", "")
         
         # Get downstream nodes from context
         downstream_nodes = context.get("downstream_nodes", [])
         available_nodes = ", ".join(downstream_nodes) if downstream_nodes else "semantic_search, synthesis"
+        
+        # Add supervisor instructions if provided
+        supervisor_instructions = ""
+        if supervisor_prompt:
+            supervisor_instructions = f"\nAdditional instructions from user:\n{supervisor_prompt}\n"
         
         system_prompt = self._build_system_prompt(
             self.SYSTEM_PROMPT_TEMPLATE,
             available_nodes=available_nodes,
             planning_style=planning_style,
             optimization_level=optimization_level,
+            supervisor_instructions=supervisor_instructions,
         )
         
         messages = [
@@ -91,24 +100,13 @@ Respond in JSON format:
         response = await self._chat(
             messages=messages,
             model=model or "gpt-4o-mini",
-            temperature=0.1,
-            max_tokens=400,
+            temperature=0.2,
+            max_tokens=600,
         )
         
-        # Parse JSON response
-        try:
-            parsed = json.loads(response)
-            plan = parsed.get("plan", response)
-            search_guidance = parsed.get("search_guidance", user_message)
-            recommended_nodes = parsed.get("recommended_nodes", [])
-            parallel_opportunities = parsed.get("parallel_opportunities", [])
-            reasoning = parsed.get("reasoning", "")
-        except json.JSONDecodeError:
-            plan = response
-            search_guidance = user_message
-            recommended_nodes = []
-            parallel_opportunities = []
-            reasoning = ""
+        # The supervisor now outputs guidance text, not JSON
+        # This guidance is passed to downstream agents
+        plan = response.strip()
         
         return AgentResult(
             agent=self.agent_id,
@@ -116,17 +114,12 @@ Respond in JSON format:
             action="plan",
             content=plan,
             metadata={
-                "search_guidance": search_guidance,
-                "recommended_nodes": recommended_nodes,
-                "parallel_opportunities": parallel_opportunities,
-                "reasoning": reasoning,
                 "planning_style": planning_style,
                 "optimization_level": optimization_level,
             },
             context_updates={
                 "supervisor_plan": plan,
-                "search_guidance": search_guidance,
-                "recommended_nodes": recommended_nodes,
+                "supervisor_guidance": plan,  # Pass to transformer and other agents
             },
         )
 

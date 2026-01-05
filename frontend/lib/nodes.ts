@@ -42,6 +42,7 @@ export type NodeSettings = {
     // Supervisor settings
     planningStyle?: "detailed" | "brief" | "optimized";
     optimizationLevel?: "none" | "basic" | "aggressive";
+    supervisorPrompt?: string; // Custom prompt/instructions for the supervisor agent
     
     // Orchestrator settings
     toolSelectionStrategy?: "conservative" | "balanced" | "aggressive";
@@ -240,8 +241,8 @@ export const NODE_TYPES: NodeType[] = [
         description: "Transforms data from one format to another. Configure source and target formats (JSON, XML, CSV, Markdown, etc.).",
         hasSettings: true,
         defaultSettings: {
-            fromFormat: "json",
-            toFormat: "xml"
+            fromFormat: "text",
+            toFormat: "csv"
         }
     },
     {

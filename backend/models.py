@@ -237,3 +237,4 @@ def get_embedding_client() -> EmbeddingClientProtocol:
     else:
         return OpenAIEmbeddingClient()
 
+

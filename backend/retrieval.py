@@ -314,3 +314,4 @@ def get_document_count() -> int:
     """Return the number of documents in the store."""
     return len(_store)
 
+

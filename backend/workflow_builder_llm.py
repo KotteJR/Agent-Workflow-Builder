@@ -6,6 +6,7 @@ workflows based on natural language descriptions.
 """
 
 import json
+import re
 from typing import Any, Dict, List, Optional
 
 from config import config
@@ -16,41 +17,54 @@ from models import get_llm_client
 NODE_DEFINITIONS = """
 Available Node Types:
 
-INPUT NODES:
-- prompt: Starting point for text-based workflows. User provides initial query or instructions.
-- upload: Upload files (PDF, CSV, TXT) to be processed in the workflow.
-- spreadsheet: Load or create structured data in spreadsheet format.
+INPUT NODES (always start workflows with one of these):
+- prompt: Starting point for text-based workflows. User provides initial query or instructions. Has inline text editor.
+- upload: Upload files (PDF, CSV, TXT, MD, DOC, DOCX) to be processed. Has inline file upload interface.
 
 AGENT NODES:
-- supervisor: Analyzes workflow graph, plans execution, identifies optimization opportunities. Settings: planningStyle (detailed/brief/optimized), optimizationLevel (none/basic/aggressive)
-- orchestrator: Intelligently selects which tools to execute based on context. Settings: toolSelectionStrategy (conservative/balanced/aggressive), maxTools (1-10)
-- semantic_search: Searches knowledge base using vector embeddings. Settings: topK (1-20), enableReranking (true/false)
-- sampler: Generates multiple diverse candidate answers. Settings: numResponses (1-10)
-- synthesis: Synthesizes final answer from multiple sources. Settings: maxWords (number)
-- summarization: Summarizes long outputs to specified word limit. Settings: maxWords (number)
-- formatting: Formats output to specific format. Settings: outputFormat (json/xml/markdown/html/csv/yaml)
-- transformer: Transforms data between formats. Settings: fromFormat (string), toFormat (string)
+- supervisor: CRITICAL - Analyzes workflow graph structure, understands downstream nodes, plans execution, identifies optimization opportunities. ALWAYS include this node in workflows. Settings: planningStyle (detailed/brief/optimized), optimizationLevel (none/basic/aggressive), supervisorPrompt (optional custom instructions string)
+- orchestrator: Intelligently selects which tools to execute based on context and query requirements. Settings: toolSelectionStrategy (conservative/balanced/aggressive), maxTools (1-10)
+- semantic_search: Performs semantic search across knowledge base using vector embeddings. Finds relevant documents based on meaning. Settings: topK (1-20), enableReranking (true/false)
+- sampler: Generates multiple diverse candidate answers by exploring different reasoning paths. Settings: numResponses (1-10)
+- synthesis: Synthesizes information from multiple sources, candidates, and tool outputs into coherent final answer. Settings: maxWords (number)
+- summarization: Summarizes long outputs, extracts key points, creates executive summaries. Settings: maxWords (number)
+- formatting: Formats outputs to specific format. Settings: outputFormat (json/xml/markdown/html/csv/yaml)
+- transformer: Transforms data from one format to another (e.g., PDF to Excel, JSON to XML). Settings: fromFormat (string), toFormat (string)
 - image_generator: Generates images from text descriptions. Settings: imageType (diagram/photo/artistic/cartoon/illustration)
 
-OUTPUT NODES:
-- response: Final output node that delivers the workflow result.
+OUTPUT NODES (always end workflows with one of these):
+- response: Final output node that delivers the workflow result as text/structured data.
+- spreadsheet: Output structured data in spreadsheet/Excel format. Use this when user wants Excel/CSV output.
 
-COMING SOON (don't include in workflows yet):
-- web_search: Real-time web search
-- aggregator: Combines outputs from multiple nodes
-- conditional_branch: Routes based on conditions
-- research: In-depth research agent
-- router: Content-based routing
-- planning: Detailed execution planning
+COMING SOON (do NOT include in workflows):
+- web_search: Real-time web search (not available yet)
+- aggregator: Combines outputs from multiple nodes (not available yet)
+- conditional_branch: Routes based on conditions (not available yet)
+- research: In-depth research agent (not available yet)
+- router: Content-based routing (not available yet)
+- planning: Detailed execution planning (not available yet)
 """
 
 SYSTEM_PROMPT = f"""You are a Workflow Builder Assistant. You help users create AI agent workflows by understanding their needs and generating workflow configurations.
 
 {NODE_DEFINITIONS}
 
+CRITICAL REQUIREMENTS:
+1. ALWAYS start with the appropriate input node:
+   - Use 'upload' node if user mentions uploading files, PDFs, documents, or file processing
+   - Use 'prompt' node for text-based queries without file uploads
+   - DO NOT use both - choose the most appropriate one based on user's request
+2. ALWAYS include a 'supervisor' agent node early in the workflow (after input, before processing)
+   - The supervisor analyzes the query/context and provides execution guidance
+   - Users can add additional instructions via supervisorPrompt setting if needed
+3. ALWAYS end with an appropriate output node:
+   - Use 'spreadsheet' if user wants Excel/CSV/structured data output
+   - Use 'response' for text/other outputs
+4. Connect nodes logically: input -> supervisor -> processing agents -> output
+
 When a user describes what they want to accomplish, analyze their requirements and:
 1. Suggest an appropriate workflow with the right nodes
-2. Explain why you chose those nodes
+2. Explain why you chose those nodes in clear, natural language (NO markdown formatting like ** or ---)
 3. Provide the workflow configuration in JSON format
 
 Workflow JSON format:
@@ -65,7 +79,22 @@ Workflow JSON format:
             "data": {{
                 "nodeType": "prompt",
                 "label": "Prompt",
-                "settings": {{}}
+                "settings": {{}},
+                "promptText": ""
+            }}
+        }},
+        {{
+            "id": "unique-id-2",
+            "type": "workflow",
+            "position": {{"x": 350, "y": 100}},
+            "data": {{
+                "nodeType": "supervisor",
+                "label": "Supervisor Agent",
+                "settings": {{
+                    "planningStyle": "optimized",
+                    "optimizationLevel": "basic",
+                    "supervisorPrompt": ""
+                }}
             }}
         }}
     ],
@@ -79,18 +108,27 @@ Workflow JSON format:
 }}
 
 Guidelines:
-- Always start with an input node (usually 'prompt')
-- Connect nodes logically based on data flow
-- End with a 'response' node for final output
-- Position nodes from left to right (x increases) and top to bottom (y increases)
-- Use appropriate spacing: x += 250 for each column, y += 150 for parallel nodes
-- Include necessary intermediate agents (supervisor, orchestrator, semantic_search, etc.)
-- Configure settings based on user requirements
+- ALWAYS start with 'prompt' node (required)
+- ALWAYS include 'supervisor' agent after input (required)
+- Connect nodes logically: prompt -> supervisor -> processing -> output
+- Position nodes from left to right (x increases): start at x=100, increment by 250 for each column
+- Use y=100 for single-row workflows, adjust y for parallel branches
+- Include necessary intermediate agents based on requirements:
+  * Use 'upload' if user wants to upload files
+  * Use 'transformer' if format conversion is needed (e.g., PDF to Excel)
+  * Use 'semantic_search' if knowledge base search is needed
+  * Use 'orchestrator' for complex tool selection
+  * Use 'sampler' + 'synthesis' for high-quality answers
+- Configure settings appropriately
+- Use 'spreadsheet' output for Excel/CSV/structured data needs
 - Keep workflows focused and efficient
 
-Respond with:
-1. A brief explanation of the workflow
-2. The complete JSON configuration wrapped in ```json ... ```
+Response Format:
+- Write explanation in plain, natural language
+- NO markdown formatting (no **, ---, #, etc.)
+- NO code blocks in explanation
+- Just clear, readable text explaining the workflow
+- Then provide JSON in ```json code block
 """
 
 
@@ -130,6 +168,7 @@ async def build_workflow_from_chat(
     explanation = response
     workflow = None
     
+    # Extract JSON from response
     if "```json" in response:
         try:
             json_start = response.index("```json") + 7
@@ -148,6 +187,107 @@ async def build_workflow_from_chat(
             explanation = response[:response.index("```")].strip()
         except (ValueError, json.JSONDecodeError) as e:
             print(f"[WORKFLOW_BUILDER] Failed to parse workflow JSON: {e}")
+    
+    # Clean up explanation: remove markdown formatting
+    if explanation:
+        # Remove markdown headers
+        import re
+        explanation = re.sub(r'^#{1,6}\s+', '', explanation, flags=re.MULTILINE)
+        # Remove bold/italic
+        explanation = re.sub(r'\*\*([^*]+)\*\*', r'\1', explanation)
+        explanation = re.sub(r'\*([^*]+)\*', r'\1', explanation)
+        # Remove horizontal rules
+        explanation = re.sub(r'^---+$', '', explanation, flags=re.MULTILINE)
+        # Remove code blocks
+        explanation = re.sub(r'```[a-z]*\n.*?```', '', explanation, flags=re.DOTALL)
+        # Clean up extra whitespace
+        explanation = re.sub(r'\n{3,}', '\n\n', explanation)
+        explanation = explanation.strip()
+    
+    # Ensure workflow always includes supervisor and appropriate input node
+    if workflow and workflow.get("nodes"):
+        node_types = [node.get("data", {}).get("nodeType") for node in workflow["nodes"]]
+        
+        # Detect if user wants file uploads
+        user_message_lower = user_message.lower()
+        has_upload_keywords = any(keyword in user_message_lower for keyword in [
+            "upload", "file", "pdf", "document", "csv", "excel", "spreadsheet", 
+            "convert pdf", "pdf to", "document to", "file to"
+        ])
+        
+        # Determine which input node to use
+        needs_upload = has_upload_keywords and "upload" not in node_types
+        needs_prompt = not has_upload_keywords and "prompt" not in node_types and "upload" not in node_types
+        
+        # Add upload node if needed (for file processing workflows)
+        if needs_upload:
+            upload_node = {
+                "id": "upload-1",
+                "type": "workflow",
+                "position": {"x": 100, "y": 100},
+                "data": {
+                    "nodeType": "upload",
+                    "label": "Upload",
+                    "settings": {},
+                    "uploadedFiles": []
+                }
+            }
+            workflow["nodes"].insert(0, upload_node)
+            # Update first edge source if edges exist
+            if workflow.get("edges"):
+                workflow["edges"][0]["source"] = "upload-1"
+        
+        # Add prompt node if needed (for text-based workflows)
+        elif needs_prompt:
+            prompt_node = {
+                "id": "prompt-1",
+                "type": "workflow",
+                "position": {"x": 100, "y": 100},
+                "data": {
+                    "nodeType": "prompt",
+                    "label": "Prompt",
+                    "settings": {},
+                    "promptText": ""
+                }
+            }
+            workflow["nodes"].insert(0, prompt_node)
+            # Update first edge source if edges exist
+            if workflow.get("edges"):
+                workflow["edges"][0]["source"] = "prompt-1"
+        
+        # Add supervisor node if missing (after input node)
+        if "supervisor" not in node_types:
+            supervisor_node = {
+                "id": "supervisor-1",
+                "type": "workflow",
+                "position": {"x": 350, "y": 100},
+                "data": {
+                    "nodeType": "supervisor",
+                    "label": "Supervisor Agent",
+                    "settings": {
+                        "planningStyle": "optimized",
+                        "optimizationLevel": "basic",
+                        "supervisorPrompt": ""
+                    }
+                }
+            }
+            # Insert after input node (prompt or upload)
+            input_idx = next((i for i, n in enumerate(workflow["nodes"]) 
+                            if n.get("data", {}).get("nodeType") in ["prompt", "upload"]), 0)
+            workflow["nodes"].insert(input_idx + 1, supervisor_node)
+            
+            # Update edges to connect input -> supervisor -> next node
+            if workflow.get("edges"):
+                first_edge = workflow["edges"][0]
+                old_source = first_edge["source"]
+                first_edge["source"] = "supervisor-1"
+                # Add edge from input to supervisor
+                input_node_id = workflow["nodes"][input_idx]["id"]
+                workflow["edges"].insert(0, {
+                    "id": f"edge-input-supervisor",
+                    "source": input_node_id,
+                    "target": "supervisor-1"
+                })
     
     return {
         "explanation": explanation,
