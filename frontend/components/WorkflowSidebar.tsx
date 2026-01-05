@@ -214,57 +214,43 @@ export function WorkflowSidebar({
                 
                 {/* Knowledge Base Toggle */}
                 <div className="px-3 py-4 border-t border-gray-100">
-                    <button
-                        onClick={handleKnowledgeBaseToggle}
-                        disabled={isSwitching}
-                        className="relative w-full group"
-                        title={`Switch to ${knowledgeBase === "legal" ? "Audit" : "Legal"} knowledge base`}
-                    >
-                        {/* Toggle Container */}
-                        <div className={`
-                            relative h-14 rounded-xl overflow-hidden transition-all duration-500 ease-out
-                            ${knowledgeBase === "legal" 
-                                ? "bg-gradient-to-r from-blue-500 to-blue-600" 
-                                : "bg-gradient-to-r from-emerald-500 to-emerald-600"
-                            }
-                            ${isSwitching ? "opacity-70" : "hover:shadow-lg hover:scale-[1.02]"}
-                        `}>
-                            {/* Sliding indicator */}
-                            <div className={`
-                                absolute inset-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-md
-                                transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
-                                ${knowledgeBase === "audit" ? "translate-x-[calc(100%+4px)]" : "translate-x-0"}
-                            `} />
+                    <div className="flex flex-col items-center gap-2">
+                        {/* Minimal pill toggle */}
+                        <button
+                            onClick={handleKnowledgeBaseToggle}
+                            disabled={isSwitching}
+                            className={`
+                                relative flex items-center justify-center
+                                w-12 h-12 rounded-full border-2 transition-all duration-300
+                                ${isSwitching ? "opacity-50" : "hover:scale-105"}
+                                ${knowledgeBase === "legal" 
+                                    ? "bg-blue-50 border-blue-200 text-blue-600" 
+                                    : "bg-emerald-50 border-emerald-200 text-emerald-600"
+                                }
+                            `}
+                            title={`${knowledgeBase === "legal" ? "Legal" : "Audit"} · Click to switch`}
+                        >
+                            {knowledgeBase === "legal" ? (
+                                <HiScale className="w-5 h-5" />
+                            ) : (
+                                <HiClipboardDocumentCheck className="w-5 h-5" />
+                            )}
                             
-                            {/* Labels */}
-                            <div className="relative h-full flex items-center">
-                                {/* Legal Side */}
-                                <div className={`
-                                    flex-1 flex items-center justify-center gap-1.5 z-10 transition-colors duration-300
-                                    ${knowledgeBase === "legal" ? "text-blue-600" : "text-white/90"}
-                                `}>
-                                    <HiScale className="w-4 h-4" />
-                                    {isExpanded && <span className="text-xs font-semibold">Legal</span>}
-                                </div>
-                                
-                                {/* Audit Side */}
-                                <div className={`
-                                    flex-1 flex items-center justify-center gap-1.5 z-10 transition-colors duration-300
-                                    ${knowledgeBase === "audit" ? "text-emerald-600" : "text-white/90"}
-                                `}>
-                                    <HiClipboardDocumentCheck className="w-4 h-4" />
-                                    {isExpanded && <span className="text-xs font-semibold">Audit</span>}
-                                </div>
-                            </div>
-                        </div>
+                            {/* Small indicator dot */}
+                            <span className={`
+                                absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white
+                                ${knowledgeBase === "legal" ? "bg-blue-500" : "bg-emerald-500"}
+                            `} />
+                        </button>
                         
-                        {/* Label below when collapsed */}
-                        {!isExpanded && (
-                            <div className="mt-1.5 text-[10px] font-medium text-gray-500 text-center uppercase tracking-wide">
-                                {knowledgeBase}
-                            </div>
-                        )}
-                    </button>
+                        {/* Label */}
+                        <span className={`
+                            text-[10px] font-semibold uppercase tracking-wider transition-colors duration-300
+                            ${knowledgeBase === "legal" ? "text-blue-600" : "text-emerald-600"}
+                        `}>
+                            {knowledgeBase}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Toggle Chat */}
