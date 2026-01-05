@@ -17,7 +17,8 @@ import {
     HiChevronDown,
     HiChevronUp,
 } from "react-icons/hi2";
-import { listWorkflows, deleteWorkflow, type WorkflowListItem } from "@/lib/api";
+import { HiScale, HiClipboardDocumentCheck } from "react-icons/hi2";
+import { listWorkflows, deleteWorkflow, switchKnowledgeBase, getKnowledgeBaseInfo, type WorkflowListItem } from "@/lib/api";
 import type { ExecutionHistoryItem, AgentStep } from "@/lib/types";
 
 type WorkflowSidebarProps = {
@@ -30,6 +31,8 @@ type WorkflowSidebarProps = {
     isRunning?: boolean;
     currentWorkflowId?: string | null;
     executionHistory?: ExecutionHistoryItem[];
+    knowledgeBase?: string;
+    onKnowledgeBaseChange?: (kb: string) => void;
 };
 
 export function WorkflowSidebar({
@@ -42,6 +45,8 @@ export function WorkflowSidebar({
     isRunning = false,
     currentWorkflowId,
     executionHistory = [],
+    knowledgeBase = "legal",
+    onKnowledgeBaseChange,
 }: WorkflowSidebarProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [showLoadModal, setShowLoadModal] = useState(false);
@@ -50,6 +55,21 @@ export function WorkflowSidebar({
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
     const [workflows, setWorkflows] = useState<WorkflowListItem[]>([]);
     const [loadingWorkflows, setLoadingWorkflows] = useState(false);
+    const [isSwitching, setIsSwitching] = useState(false);
+    
+    const handleKnowledgeBaseToggle = async () => {
+        if (isSwitching) return;
+        const newKb = knowledgeBase === "legal" ? "audit" : "legal";
+        setIsSwitching(true);
+        try {
+            await switchKnowledgeBase(newKb);
+            onKnowledgeBaseChange?.(newKb);
+        } catch (error) {
+            console.error("Failed to switch knowledge base:", error);
+        } finally {
+            setIsSwitching(false);
+        }
+    };
 
     const fetchWorkflows = async () => {
         setLoadingWorkflows(true);
@@ -191,6 +211,61 @@ export function WorkflowSidebar({
 
                 {/* Spacer */}
                 <div className="flex-1" />
+                
+                {/* Knowledge Base Toggle */}
+                <div className="px-3 py-4 border-t border-gray-100">
+                    <button
+                        onClick={handleKnowledgeBaseToggle}
+                        disabled={isSwitching}
+                        className="relative w-full group"
+                        title={`Switch to ${knowledgeBase === "legal" ? "Audit" : "Legal"} knowledge base`}
+                    >
+                        {/* Toggle Container */}
+                        <div className={`
+                            relative h-14 rounded-xl overflow-hidden transition-all duration-500 ease-out
+                            ${knowledgeBase === "legal" 
+                                ? "bg-gradient-to-r from-blue-500 to-blue-600" 
+                                : "bg-gradient-to-r from-emerald-500 to-emerald-600"
+                            }
+                            ${isSwitching ? "opacity-70" : "hover:shadow-lg hover:scale-[1.02]"}
+                        `}>
+                            {/* Sliding indicator */}
+                            <div className={`
+                                absolute inset-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-md
+                                transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                                ${knowledgeBase === "audit" ? "translate-x-[calc(100%+4px)]" : "translate-x-0"}
+                            `} />
+                            
+                            {/* Labels */}
+                            <div className="relative h-full flex items-center">
+                                {/* Legal Side */}
+                                <div className={`
+                                    flex-1 flex items-center justify-center gap-1.5 z-10 transition-colors duration-300
+                                    ${knowledgeBase === "legal" ? "text-blue-600" : "text-white/90"}
+                                `}>
+                                    <HiScale className="w-4 h-4" />
+                                    {isExpanded && <span className="text-xs font-semibold">Legal</span>}
+                                </div>
+                                
+                                {/* Audit Side */}
+                                <div className={`
+                                    flex-1 flex items-center justify-center gap-1.5 z-10 transition-colors duration-300
+                                    ${knowledgeBase === "audit" ? "text-emerald-600" : "text-white/90"}
+                                `}>
+                                    <HiClipboardDocumentCheck className="w-4 h-4" />
+                                    {isExpanded && <span className="text-xs font-semibold">Audit</span>}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Label below when collapsed */}
+                        {!isExpanded && (
+                            <div className="mt-1.5 text-[10px] font-medium text-gray-500 text-center uppercase tracking-wide">
+                                {knowledgeBase}
+                            </div>
+                        )}
+                    </button>
+                </div>
 
                 {/* Toggle Chat */}
                 <div className="pt-3 pb-3 border-t border-gray-100">

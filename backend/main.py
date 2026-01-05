@@ -63,10 +63,11 @@ def startup_event():
     print(f"[STARTUP] LLM Provider: {config.LLM_PROVIDER}")
     print(f"[STARTUP] Models: {config.get_model_config()}")
     
-    # Initialize vector store
+    # Initialize vector stores for both knowledge bases
     try:
         retrieval.initialize_vector_store()
-        print(f"[STARTUP] Vector store initialized with {retrieval.get_document_count()} documents")
+        counts = retrieval.get_all_document_counts()
+        print(f"[STARTUP] Vector stores initialized: Legal={counts.get('legal', 0)}, Audit={counts.get('audit', 0)} documents")
     except Exception as e:
         print(f"[STARTUP] Warning: Could not initialize vector store: {e}")
 
@@ -79,6 +80,11 @@ class WorkflowExecuteRequest(BaseModel):
     message: str
     workflow_nodes: List[Dict[str, Any]]
     workflow_edges: Optional[List[Dict[str, str]]] = []
+    knowledge_base: Optional[str] = "legal"
+
+
+class KnowledgeBaseRequest(BaseModel):
+    knowledge_base: str
 
 
 class WorkflowSaveRequest(BaseModel):
@@ -102,6 +108,29 @@ class WorkflowImproveRequest(BaseModel):
 # Workflow Execution Endpoints
 # =============================================================================
 
+@app.get("/api/knowledge-base")
+async def get_knowledge_base_info():
+    """Get information about available knowledge bases."""
+    counts = retrieval.get_all_document_counts()
+    return {
+        "active": retrieval.get_active_knowledge_base(),
+        "available": [
+            {"id": "legal", "name": "Legal", "document_count": counts.get("legal", 0)},
+            {"id": "audit", "name": "Audit", "document_count": counts.get("audit", 0)},
+        ]
+    }
+
+
+@app.post("/api/knowledge-base/switch")
+async def switch_knowledge_base(req: KnowledgeBaseRequest):
+    """Switch the active knowledge base."""
+    if req.knowledge_base not in ["legal", "audit"]:
+        raise HTTPException(status_code=400, detail="Invalid knowledge base. Must be 'legal' or 'audit'")
+    
+    retrieval.set_active_knowledge_base(req.knowledge_base)
+    return {"active": req.knowledge_base, "message": f"Switched to {req.knowledge_base} knowledge base"}
+
+
 @app.post("/api/workflow/execute")
 async def api_execute_workflow(req: WorkflowExecuteRequest):
     """
@@ -110,6 +139,10 @@ async def api_execute_workflow(req: WorkflowExecuteRequest):
     The workflow is defined by nodes and edges from the frontend.
     Results are streamed as Server-Sent Events.
     """
+    # Set knowledge base for this execution if specified
+    if req.knowledge_base:
+        retrieval.set_active_knowledge_base(req.knowledge_base)
+    
     return StreamingResponse(
         execute_workflow(
             user_message=req.message,

@@ -17,8 +17,14 @@ from config import config
 from models import get_llm_client, get_embedding_client
 
 
-# In-memory store: list of {"id", "title", "content", "embedding"}
-_store: List[Dict[str, Any]] = []
+# In-memory stores for each knowledge base: {"legal": [...], "audit": [...]}
+_stores: Dict[str, List[Dict[str, Any]]] = {
+    "legal": [],
+    "audit": [],
+}
+
+# Current active knowledge base
+_active_knowledge_base: str = "legal"
 
 
 def _extract_title_from_content(content: str, filename: str) -> str:
@@ -49,16 +55,18 @@ def _read_pdf(filepath: Path) -> str:
         return ""
 
 
-def _load_documents_from_folder() -> List[Dict[str, str]]:
-    """Load all documents from the documents folder."""
+def _load_documents_from_folder(knowledge_base: str = "legal") -> List[Dict[str, str]]:
+    """Load all documents from the specified knowledge base folder."""
     documents = []
     
-    docs_dir = config.DOCUMENTS_DIR
+    docs_dir = config.get_documents_dir(knowledge_base)
     if not docs_dir.exists():
         docs_dir.mkdir(parents=True, exist_ok=True)
         return documents
     
     for filepath in sorted(docs_dir.iterdir()):
+        if filepath.is_dir():
+            continue
         if filepath.suffix == ".md":
             content = filepath.read_text(encoding="utf-8")
         elif filepath.suffix == ".pdf":
@@ -72,7 +80,7 @@ def _load_documents_from_folder() -> List[Dict[str, str]]:
             continue
         
         title = _extract_title_from_content(content, filepath.name)
-        doc_id = f"doc_{filepath.stem}"
+        doc_id = f"doc_{knowledge_base}_{filepath.stem}"
         
         documents.append({
             "id": doc_id,
@@ -96,24 +104,27 @@ def _compute_documents_hash(documents: List[Dict[str, str]]) -> str:
     return hashlib.sha256(combined.encode()).hexdigest()
 
 
-def _load_cache() -> Optional[Dict[str, Any]]:
-    """Load cached embeddings from disk."""
-    if not config.EMBEDDINGS_CACHE.exists():
+def _load_cache(knowledge_base: str = "legal") -> Optional[Dict[str, Any]]:
+    """Load cached embeddings from disk for the specified knowledge base."""
+    cache_path = config.get_embeddings_cache(knowledge_base)
+    if not cache_path.exists():
         return None
     try:
-        with open(config.EMBEDDINGS_CACHE, "r") as f:
+        with open(cache_path, "r") as f:
             return json.load(f)
     except Exception:
         return None
 
 
-def _save_cache(documents_hash: str, store_data: List[Dict[str, Any]]) -> None:
-    """Save embeddings to disk cache."""
+def _save_cache(documents_hash: str, store_data: List[Dict[str, Any]], knowledge_base: str = "legal") -> None:
+    """Save embeddings to disk cache for the specified knowledge base."""
     model = config.EMBEDDING_MODEL if config.LLM_PROVIDER != "ollama" else config.OLLAMA_EMBEDDING_MODEL
+    cache_path = config.get_embeddings_cache(knowledge_base)
     cache_data = {
         "hash": documents_hash,
         "provider": config.LLM_PROVIDER,
         "embedding_model": model,
+        "knowledge_base": knowledge_base,
         "documents": [
             {
                 "id": item["id"],
@@ -124,65 +135,83 @@ def _save_cache(documents_hash: str, store_data: List[Dict[str, Any]]) -> None:
             for item in store_data
         ]
     }
-    with open(config.EMBEDDINGS_CACHE, "w") as f:
+    with open(cache_path, "w") as f:
         json.dump(cache_data, f)
 
 
-def initialize_vector_store(force: bool = False) -> None:
+def set_active_knowledge_base(knowledge_base: str) -> None:
+    """Set the active knowledge base for semantic search."""
+    global _active_knowledge_base
+    if knowledge_base in ["legal", "audit"]:
+        _active_knowledge_base = knowledge_base
+        print(f"Switched to {knowledge_base} knowledge base")
+
+
+def get_active_knowledge_base() -> str:
+    """Get the currently active knowledge base."""
+    return _active_knowledge_base
+
+
+def initialize_vector_store(force: bool = False, knowledge_base: Optional[str] = None) -> None:
     """Build or rebuild the in-memory vector store. Uses cache if documents unchanged."""
-    global _store
+    global _stores
     
-    # Load documents from folder
-    documents = _load_documents_from_folder()
+    # If specific knowledge base specified, only initialize that one
+    bases_to_init = [knowledge_base] if knowledge_base else ["legal", "audit"]
     
-    if not documents:
-        print("No documents found in documents folder.")
-        _store = []
-        return
-    
-    current_hash = _compute_documents_hash(documents)
-    
-    # Try to load from cache
-    if not force:
-        cache = _load_cache()
-        if cache and cache.get("hash") == current_hash:
-            print(f"Loading {len(cache['documents'])} documents from cache...")
-            _store = [
-                {
-                    "id": item["id"],
-                    "title": item["title"],
-                    "content": item["content"],
-                    "embedding": np.array(item["embedding"], dtype=np.float32),
-                }
-                for item in cache["documents"]
-            ]
-            return
-    
-    # Need to embed documents
-    print(f"Embedding {len(documents)} documents...")
-    
-    embedding_client = get_embedding_client()
-    contents = [doc["content"] for doc in documents]
-    embeddings = embedding_client.embed_texts(contents)
-    
-    _store = []
-    for doc, emb in zip(documents, embeddings):
-        _store.append({
-            "id": doc["id"],
-            "title": doc["title"],
-            "content": doc["content"],
-            "embedding": np.array(emb, dtype=np.float32),
-        })
-    
-    # Save to cache
-    _save_cache(current_hash, _store)
-    print(f"Cached embeddings for {len(_store)} documents.")
+    for kb in bases_to_init:
+        # Load documents from folder
+        documents = _load_documents_from_folder(kb)
+        
+        if not documents:
+            print(f"No documents found in {kb} documents folder.")
+            _stores[kb] = []
+            continue
+        
+        current_hash = _compute_documents_hash(documents)
+        
+        # Try to load from cache
+        if not force:
+            cache = _load_cache(kb)
+            if cache and cache.get("hash") == current_hash:
+                print(f"[{kb.upper()}] Loading {len(cache['documents'])} documents from cache...")
+                _stores[kb] = [
+                    {
+                        "id": item["id"],
+                        "title": item["title"],
+                        "content": item["content"],
+                        "embedding": np.array(item["embedding"], dtype=np.float32),
+                    }
+                    for item in cache["documents"]
+                ]
+                continue
+        
+        # Need to embed documents
+        print(f"[{kb.upper()}] Embedding {len(documents)} documents...")
+        
+        embedding_client = get_embedding_client()
+        contents = [doc["content"] for doc in documents]
+        embeddings = embedding_client.embed_texts(contents)
+        
+        _stores[kb] = []
+        for doc, emb in zip(documents, embeddings):
+            _stores[kb].append({
+                "id": doc["id"],
+                "title": doc["title"],
+                "content": doc["content"],
+                "embedding": np.array(emb, dtype=np.float32),
+            })
+        
+        # Save to cache
+        _save_cache(current_hash, _stores[kb], kb)
+        print(f"[{kb.upper()}] Cached embeddings for {len(_stores[kb])} documents.")
 
 
 def semantic_search(
     query: str,
     top_k: int = 5,
     rerank: bool = True,
+    knowledge_base: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Return the top-k documents with title, snippet, and similarity score.
@@ -191,11 +220,15 @@ def semantic_search(
         query: Search query
         top_k: Number of results to return
         rerank: Whether to use LLM reranking
+        knowledge_base: Which knowledge base to search (defaults to active)
         
     Returns:
         List of matching documents with scores
     """
-    if not _store:
+    kb = knowledge_base or _active_knowledge_base
+    store = _stores.get(kb, [])
+    
+    if not store:
         return []
     
     embedding_client = get_embedding_client()
@@ -203,7 +236,7 @@ def semantic_search(
     
     # Calculate cosine similarity
     scores = []
-    for item in _store:
+    for item in store:
         doc_emb = item["embedding"]
         sim = float(np.dot(query_embedding, doc_emb) / (np.linalg.norm(query_embedding) * np.linalg.norm(doc_emb)))
         scores.append((sim, item))
@@ -229,6 +262,7 @@ def semantic_search(
             "snippet": item["content"],
             "score": round(sim * 100, 1),
             "score_type": "semantic",
+            "knowledge_base": kb,
         })
     return output
 
@@ -310,8 +344,14 @@ Output ONLY a valid JSON array, no explanation. Example: [{{"doc_id": 1, "releva
     return reranked_results[:top_k]
 
 
-def get_document_count() -> int:
+def get_document_count(knowledge_base: Optional[str] = None) -> int:
     """Return the number of documents in the store."""
-    return len(_store)
+    kb = knowledge_base or _active_knowledge_base
+    return len(_stores.get(kb, []))
+
+
+def get_all_document_counts() -> Dict[str, int]:
+    """Return document counts for all knowledge bases."""
+    return {kb: len(store) for kb, store in _stores.items()}
 
 

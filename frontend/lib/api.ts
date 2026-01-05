@@ -26,6 +26,41 @@ export interface WorkflowBuildResult {
     raw_response: string;
 }
 
+export interface KnowledgeBaseInfo {
+    active: string;
+    available: Array<{
+        id: string;
+        name: string;
+        document_count: number;
+    }>;
+}
+
+/**
+ * Get knowledge base information.
+ */
+export async function getKnowledgeBaseInfo(): Promise<KnowledgeBaseInfo> {
+    const response = await fetch(`${API_BASE}/api/knowledge-base`);
+    if (!response.ok) {
+        throw new Error(`Failed to get knowledge base info: ${response.statusText}`);
+    }
+    return response.json();
+}
+
+/**
+ * Switch the active knowledge base.
+ */
+export async function switchKnowledgeBase(knowledgeBase: string): Promise<{ active: string; message: string }> {
+    const response = await fetch(`${API_BASE}/api/knowledge-base/switch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ knowledge_base: knowledgeBase }),
+    });
+    if (!response.ok) {
+        throw new Error(`Failed to switch knowledge base: ${response.statusText}`);
+    }
+    return response.json();
+}
+
 /**
  * Execute a workflow with SSE streaming.
  */
@@ -33,7 +68,8 @@ export async function executeWorkflow(
     message: string,
     nodes: ApiWorkflowNode[],
     edges: ApiWorkflowEdge[],
-    onEvent: (event: string, data: unknown) => void
+    onEvent: (event: string, data: unknown) => void,
+    knowledgeBase?: string
 ): Promise<void> {
     const response = await fetch(`${API_BASE}/api/workflow/execute`, {
         method: "POST",
@@ -42,6 +78,7 @@ export async function executeWorkflow(
             message,
             workflow_nodes: nodes,
             workflow_edges: edges,
+            knowledge_base: knowledgeBase,
         }),
     });
 

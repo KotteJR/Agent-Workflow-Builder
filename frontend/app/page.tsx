@@ -86,6 +86,9 @@ function FlowCanvas() {
 
     // Node outputs state (stored on output nodes)
     const [nodeOutputs, setNodeOutputs] = useState<Map<string, NodeOutputData>>(new Map());
+    
+    // Knowledge base state
+    const [knowledgeBase, setKnowledgeBase] = useState<string>("legal");
 
     // Modal state
     const [showSaveModal, setShowSaveModal] = useState(false);
@@ -538,13 +541,13 @@ function FlowCanvas() {
                     setNodeExecutionSteps(new Map());
                     setNodeExecutionTimes(new Map());
                 }
-            });
+            }, knowledgeBase);
         } catch (error) {
             console.error("Failed to run workflow:", error);
             alert("Failed to run workflow. Make sure the backend is running.");
             setIsRunning(false);
         }
-    }, [nodes, edges, workflowName]);
+    }, [nodes, edges, workflowName, knowledgeBase]);
 
     // Memoized values
     const nodesWithSettings = useMemo(
@@ -617,6 +620,8 @@ function FlowCanvas() {
                 isRunning={isRunning}
                 currentWorkflowId={currentWorkflowId}
                 executionHistory={executionHistory}
+                knowledgeBase={knowledgeBase}
+                onKnowledgeBaseChange={setKnowledgeBase}
             />
 
             {isChatOpen && (

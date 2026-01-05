@@ -47,6 +47,26 @@ class Config:
     WORKFLOWS_DIR: Path = BASE_DIR / "workflows"
     EMBEDDINGS_CACHE: Path = BASE_DIR / "embeddings_cache.json"
     
+    # Knowledge Base Paths
+    LEGAL_DOCUMENTS_DIR: Path = BASE_DIR / "documents" / "legal"
+    AUDIT_DOCUMENTS_DIR: Path = BASE_DIR / "documents" / "audit"
+    LEGAL_EMBEDDINGS_CACHE: Path = BASE_DIR / "embeddings_cache_legal.json"
+    AUDIT_EMBEDDINGS_CACHE: Path = BASE_DIR / "embeddings_cache_audit.json"
+    
+    @classmethod
+    def get_documents_dir(cls, knowledge_base: str = "legal") -> Path:
+        """Get the documents directory for the specified knowledge base."""
+        if knowledge_base == "audit":
+            return cls.AUDIT_DOCUMENTS_DIR
+        return cls.LEGAL_DOCUMENTS_DIR
+    
+    @classmethod
+    def get_embeddings_cache(cls, knowledge_base: str = "legal") -> Path:
+        """Get the embeddings cache file for the specified knowledge base."""
+        if knowledge_base == "audit":
+            return cls.AUDIT_EMBEDDINGS_CACHE
+        return cls.LEGAL_EMBEDDINGS_CACHE
+    
     @classmethod
     def get_model_config(cls) -> dict:
         """Get model configuration based on provider."""
