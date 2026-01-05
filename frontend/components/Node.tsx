@@ -79,44 +79,33 @@ export const WorkflowNode = memo(({ id, data, selected }: NodeProps<Node>) => {
             <div
                 className={`
                     bg-white rounded-lg shadow-sm border-2 min-w-[220px] max-w-[320px]
-                    transition-all duration-300 relative
+                    transition-all duration-300 relative overflow-hidden
                     ${selected ? "border-blue-400 shadow-lg" : "border-gray-200"}
                     hover:shadow-md hover:border-gray-300
                     ${hasSettings ? "cursor-pointer" : ""}
-                    ${nodeData.executionState?.isExecuting ? "cursor-pointer border-blue-400" : ""}
+                    ${nodeData.executionState?.isExecuting ? "cursor-pointer border-transparent node-executing" : ""}
                 `}
                 onDoubleClick={hasSettings ? handleSettingsClick : undefined}
                 onClick={nodeData.executionState?.isExecuting && nodeData.onExecutionClick ? () => nodeData.onExecutionClick!(id) : undefined}
             >
-                {/* Glowing effect when executing */}
-                {nodeData.executionState?.isExecuting && (
-                    <div 
-                        className="absolute -inset-1 rounded-xl bg-blue-400/30 blur-md pointer-events-none animate-pulse"
-                        style={{ animationDuration: '1.5s' }}
-                    />
-                )}
-                {nodeData.executionState?.isExecuting && (
-                    <div 
-                        className="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-blue-400 via-blue-500 to-blue-400 opacity-60 pointer-events-none animate-pulse"
-                        style={{ animationDuration: '1s' }}
-                    />
-                )}
                 {/* Header - Drag Handle */}
-                <div className="drag-handle cursor-grab active:cursor-grabbing px-4 py-3 border-b border-gray-100 flex items-center gap-3 relative z-10">
+                <div className="drag-handle cursor-grab active:cursor-grabbing px-4 py-3 border-b border-gray-100 flex items-center gap-3 relative z-10 bg-white rounded-t-lg">
                     <div
-                        className={`w-9 h-9 rounded-lg ${nodeConfig.color} flex items-center justify-center flex-shrink-0 border relative`}
+                        className={`w-9 h-9 rounded-lg ${nodeConfig.color} flex items-center justify-center flex-shrink-0 border relative ${nodeData.executionState?.isExecuting ? "node-executing-indicator" : ""}`}
                     >
                         <Icon className="w-5 h-5" />
-                        {/* Executing indicator dot */}
-                        {nodeData.executionState?.isExecuting && (
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full animate-pulse border-2 border-white" />
-                        )}
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-900 truncate flex items-center gap-2">
                             {nodeConfig.label}
                             {nodeData.executionState?.isExecuting && (
-                                <span className="text-xs text-blue-600 font-normal animate-pulse">Executing...</span>
+                                <span className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-medium">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                                    </span>
+                                    Running
+                                </span>
                             )}
                         </div>
                         <div className="text-xs text-gray-500 capitalize">{nodeConfig.category}</div>
