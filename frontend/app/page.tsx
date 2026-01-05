@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, useMemo } from "react";
+import { useCallback, useRef, useState, useMemo, MutableRefObject } from "react";
 import {
   ReactFlow,
   Node,
@@ -81,6 +81,8 @@ function FlowCanvas() {
     const [nodeExecutionTimes, setNodeExecutionTimes] = useState<Map<string, number>>(new Map());
     const [runResult, setRunResult] = useState<WorkflowExecutionResult | null>(null);
     const [executionHistory, setExecutionHistory] = useState<ExecutionHistoryItem[]>([]);
+    // Ref to track steps during execution (avoids closure issues)
+    const executionStepsRef = useRef<Map<string, AgentStep>>(new Map());
 
     // Node outputs state (stored on output nodes)
     const [nodeOutputs, setNodeOutputs] = useState<Map<string, NodeOutputData>>(new Map());
@@ -391,6 +393,7 @@ function FlowCanvas() {
         setNodeExecutionTimes(new Map());
         setNodeOutputs(new Map()); // Clear previous outputs
         setRunResult(null);
+        executionStepsRef.current = new Map(); // Clear ref
 
         try {
             const workflowNodes = nodes.map((node) => {
@@ -450,6 +453,9 @@ function FlowCanvas() {
                         
                         // Store step and execution time separately
                         if (step) {
+                            // Update ref immediately (no closure issues)
+                            executionStepsRef.current.set(nodeId, step);
+                            // Also update state for UI
                             setNodeExecutionSteps((prevSteps) => {
                                 const nextSteps = new Map(prevSteps);
                                 nextSteps.set(nodeId, step);
@@ -490,14 +496,14 @@ function FlowCanvas() {
                     }
                     setNodeOutputs(newOutputs);
                     
-                    // Save to execution history
+                    // Save to execution history (use ref for latest steps)
                     const historyItem: ExecutionHistoryItem = {
                         id: `exec-${Date.now()}`,
                         timestamp: Date.now(),
                         workflowName: workflowName,
                         query: query,
                         result: result,
-                        nodeOutputs: new Map(nodeExecutionSteps),
+                        nodeOutputs: new Map(executionStepsRef.current),
                         duration: result.latency_ms || 0,
                     };
                     setExecutionHistory((prev) => [historyItem, ...prev].slice(0, 50));
@@ -520,7 +526,7 @@ function FlowCanvas() {
             alert("Failed to run workflow. Make sure the backend is running.");
             setIsRunning(false);
         }
-    }, [nodes, edges, workflowName, nodeExecutionSteps]);
+    }, [nodes, edges, workflowName]);
 
     // Memoized values
     const nodesWithSettings = useMemo(

@@ -116,17 +116,52 @@ export const NodeSettingsPanel = memo(function NodeSettingsPanel({
                         <div className="space-y-4">
                             <TextSetting
                                 label="From Format"
-                                value={settings.fromFormat ?? "json"}
+                                value={settings.fromFormat ?? "text"}
                                 onChange={(v) => setSettings({ ...settings, fromFormat: v })}
-                                placeholder="json"
-                                helpText="Source format (e.g., json, xml, csv, markdown)"
+                                placeholder="text"
+                                helpText="Source format (e.g., text, pdf, json, xml, csv)"
                             />
                             <TextSetting
                                 label="To Format"
-                                value={settings.toFormat ?? "xml"}
+                                value={settings.toFormat ?? "csv"}
                                 onChange={(v) => setSettings({ ...settings, toFormat: v })}
-                                placeholder="xml"
-                                helpText="Target format (e.g., json, xml, csv, markdown)"
+                                placeholder="csv"
+                                helpText="Target format (e.g., csv, json, xml, markdown)"
+                            />
+                            <CheckboxSetting
+                                label="Advanced Analysis (GPT-4)"
+                                checked={settings.useAdvancedModel ?? true}
+                                onChange={(v) => setSettings({ ...settings, useAdvancedModel: v })}
+                                helpText="Use GPT-4 for deep document understanding and comprehensive extraction. Recommended for complex documents."
+                            />
+                        </div>
+                    )}
+
+                    {/* Spreadsheet Output Settings */}
+                    {nodeType === "spreadsheet" && (
+                        <div className="space-y-4">
+                            <TextareaSetting
+                                label="Custom Columns"
+                                value={settings.customColumns ?? ""}
+                                onChange={(v) => setSettings({ ...settings, customColumns: v })}
+                                placeholder="e.g., Title, Author, Date, Summary, Key Points, Citations"
+                                helpText="Specify columns you want extracted (comma-separated). Leave empty for AI-determined columns."
+                            />
+                            <SelectSetting
+                                label="Extraction Depth"
+                                value={settings.extractionDepth ?? "comprehensive"}
+                                onChange={(v) =>
+                                    setSettings({
+                                        ...settings,
+                                        extractionDepth: v as NodeSettings["extractionDepth"],
+                                    })
+                                }
+                                options={[
+                                    { value: "basic", label: "Basic (quick, fewer details)" },
+                                    { value: "detailed", label: "Detailed (balanced)" },
+                                    { value: "comprehensive", label: "Comprehensive (deep analysis)" },
+                                ]}
+                                helpText="How thoroughly to analyze the document for data extraction"
                             />
                         </div>
                     )}

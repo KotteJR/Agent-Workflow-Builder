@@ -179,6 +179,17 @@ async def execute_workflow(
     print(f"[WORKFLOW] Reachable nodes: {reachable_nodes}")
     print(f"[WORKFLOW] Execution order: {execution_order}")
     
+    # Extract spreadsheet node settings if present (for transformer to use)
+    spreadsheet_settings = {}
+    for node_id in reachable_nodes:
+        node = node_map.get(node_id)
+        if node:
+            node_data = node.get("data", {})
+            if node_data.get("nodeType") == "spreadsheet":
+                spreadsheet_settings = node_data.get("settings", {})
+                print(f"[WORKFLOW] Found spreadsheet settings: {spreadsheet_settings}")
+                break
+    
     # Execution context - shared state between nodes
     context: Dict[str, Any] = {
         "user_message": user_message,
@@ -193,6 +204,7 @@ async def execute_workflow(
         },
         "orchestrator_result": {"tools_to_execute": []},
         "final_answer": "",
+        "spreadsheet_settings": spreadsheet_settings,  # Pass to transformer
     }
     
     # Track executed and excluded nodes
@@ -224,7 +236,8 @@ async def execute_workflow(
                             file_name = file_info.get("name", "unknown")
                             file_content = file_info.get("content", "")
                             if file_content:
-                                file_contents.append(f"[File: {file_name}]\n{file_content[:5000]}")  # Limit content size
+                                # Use much larger content limit for comprehensive analysis
+                                file_contents.append(f"[File: {file_name}]\n{file_content[:50000]}")
                         
                         if file_contents:
                             context["uploaded_file_content"] = "\n\n".join(file_contents)

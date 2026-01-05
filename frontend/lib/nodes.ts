@@ -73,7 +73,15 @@ export type NodeSettings = {
     // Aggregator settings
     mergeStrategy?: "concatenate" | "summarize" | "prioritize";
     conflictResolution?: "first" | "latest" | "consensus";
+    
+    // Spreadsheet output settings
+    customColumns?: string; // Comma-separated column names user wants
+    extractionDepth?: "basic" | "detailed" | "comprehensive"; // How deep to analyze document
+    
+    // Transformer settings (additional)
+    useAdvancedModel?: boolean; // Use large model for better understanding
 };
+
 
 export type NodeType = {
     id: string;
@@ -110,7 +118,12 @@ export const NODE_TYPES: NodeType[] = [
         icon: HiTableCells,
         color: "bg-teal-100 text-teal-600 border-teal-200",
         category: "output",
-        description: "Load or create structured data in spreadsheet format."
+        description: "Output structured data as spreadsheet. Specify custom columns or let AI determine the best structure.",
+        hasSettings: true,
+        defaultSettings: {
+            customColumns: "", // User can specify: "Name, Email, Phone, Company"
+            extractionDepth: "comprehensive",
+        },
     },
     {
         id: "supervisor",
@@ -238,11 +251,12 @@ export const NODE_TYPES: NodeType[] = [
         icon: HiArrowPath,
         color: "bg-cyan-100 text-cyan-600 border-cyan-200",
         category: "agent",
-        description: "Transforms data from one format to another. Configure source and target formats (JSON, XML, CSV, Markdown, etc.).",
+        description: "Transforms data from one format to another. Enable 'Advanced Analysis' for deep document understanding and comprehensive data extraction.",
         hasSettings: true,
         defaultSettings: {
             fromFormat: "text",
-            toFormat: "csv"
+            toFormat: "csv",
+            useAdvancedModel: true, // Default to using large model for better extraction
         }
     },
     {
