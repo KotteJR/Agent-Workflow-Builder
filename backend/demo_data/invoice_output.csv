@@ -1,0 +1,7 @@
+Invoice Number,Date,Vendor Name,Vendor Address,Item Description,Quantity,Unit Price,Total Amount,Tax Rate,Tax Amount,Grand Total,Payment Terms,Due Date,Status
+INV-2024-001,2024-01-15,Acme Corp,"123 Business St, New York, NY 10001",Professional Services - Q1,1,5000.00,5000.00,8.875%,443.75,5443.75,Net 30,2024-02-14,Pending
+INV-2024-001,2024-01-15,Acme Corp,"123 Business St, New York, NY 10001",Software License Annual,5,299.99,1499.95,8.875%,133.12,1633.07,Net 30,2024-02-14,Pending
+INV-2024-001,2024-01-15,Acme Corp,"123 Business St, New York, NY 10001",Cloud Hosting Monthly,12,149.00,1788.00,8.875%,158.69,1946.69,Net 30,2024-02-14,Pending
+INV-2024-001,2024-01-15,Acme Corp,"123 Business St, New York, NY 10001",Technical Support Hours,20,75.00,1500.00,8.875%,133.13,1633.13,Net 30,2024-02-14,Pending
+INV-2024-001,2024-01-15,Acme Corp,"123 Business St, New York, NY 10001",Equipment Rental,1,450.00,450.00,8.875%,39.94,489.94,Net 30,2024-02-14,Pending
+

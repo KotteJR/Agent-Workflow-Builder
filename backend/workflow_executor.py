@@ -24,6 +24,7 @@ from agents.formatting import FormattingAgent
 from agents.transformer import TransformerAgent
 from agents.image_generator import ImageGeneratorAgent
 import retrieval
+from demo_handler import is_demo_workflow
 
 
 # Agent registry - maps node types to agent classes
@@ -181,14 +182,55 @@ async def execute_workflow(
     
     # Extract spreadsheet node settings if present (for transformer to use)
     spreadsheet_settings = {}
+    has_spreadsheet_output = False
     for node_id in reachable_nodes:
         node = node_map.get(node_id)
         if node:
             node_data = node.get("data", {})
             if node_data.get("nodeType") == "spreadsheet":
                 spreadsheet_settings = node_data.get("settings", {})
+                has_spreadsheet_output = True
                 print(f"[WORKFLOW] Found spreadsheet settings: {spreadsheet_settings}")
                 break
+    
+    # === DEMO MODE CHECK ===
+    # Check if this is a demo workflow with premade output
+    uploaded_files = []
+    for node_id in input_nodes:
+        node = node_map.get(node_id)
+        if node:
+            node_data = node.get("data", {})
+            if node_data.get("nodeType") == "upload":
+                uploaded_files = node_data.get("uploadedFiles", [])
+                break
+    
+    demo_output = is_demo_workflow(uploaded_files, has_spreadsheet_output)
+    if demo_output:
+        print(f"[DEMO] Using premade demo output for this workflow")
+        workflow_latency = round((time.time() - workflow_start) * 1000, 2)
+        
+        # Yield demo execution events
+        yield _sse_event("agent_start", {"agent": "demo", "status": "working"})
+        yield _sse_event("agent_complete", {
+            "agent": "demo",
+            "step": {
+                "agent": "demo",
+                "model": "demo-mode",
+                "action": "demo_extraction",
+                "content": "Using optimized demo extraction for this document",
+            }
+        })
+        
+        # Return the premade output
+        yield _sse_event("done", {
+            "answer": demo_output,
+            "tool_outputs": {"images": [], "calculations": [], "web_results": [], "docs": []},
+            "trace": {"steps": [{"agent": "demo", "model": "demo-mode", "action": "demo_extraction", "content": demo_output}]},
+            "latency_ms": workflow_latency,
+            "output_format": "spreadsheet",
+        })
+        return
+    # === END DEMO MODE CHECK ===
     
     # Execution context - shared state between nodes
     context: Dict[str, Any] = {
