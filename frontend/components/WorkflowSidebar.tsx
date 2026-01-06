@@ -119,7 +119,7 @@ export function WorkflowSidebar({
             {/* Inner container for overflow management */}
             <div className="flex-1 flex flex-col overflow-hidden w-full relative">
                 {/* Logo / Brand */}
-                <div className="px-3 py-4 border-b border-gray-100 flex items-center justify-center overflow-hidden">
+                <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between overflow-hidden">
                     <div className={`flex items-center gap-2 transition-all duration-300 ${isExpanded ? '' : 'flex-col'}`}>
                         {/* Logo Icon */}
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-md">
@@ -130,6 +130,12 @@ export function WorkflowSidebar({
                             <div className="text-sm font-bold text-gray-900 leading-tight">Cogniveil</div>
                             <div className="text-xs text-indigo-600 font-medium">Builder</div>
                         </div>
+                    </div>
+                    {/* Version Badge */}
+                    <div className={`transition-all duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0 hidden'}`}>
+                        <span className="px-2 py-0.5 text-[10px] font-semibold bg-indigo-100 text-indigo-600 rounded-full">
+                            v1.0
+                        </span>
                     </div>
                 </div>
                 
