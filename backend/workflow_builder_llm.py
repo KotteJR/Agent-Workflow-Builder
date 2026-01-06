@@ -57,10 +57,16 @@ CRITICAL REQUIREMENTS:
 2. ALWAYS include a 'supervisor' agent node early in the workflow (after input, before processing)
    - The supervisor analyzes the query/context and provides execution guidance
    - Users can add additional instructions via supervisorPrompt setting if needed
-3. ALWAYS end with an appropriate output node:
+3. SEMANTIC SEARCH RULES:
+   - When workflow starts with 'prompt' node → ALWAYS include 'semantic_search' node to retrieve relevant context from the knowledge base
+   - Connect: prompt -> supervisor -> semantic_search -> other agents
+   - When workflow starts with 'upload' node → semantic_search is NOT needed (content is provided via upload)
+4. ALWAYS end with an appropriate output node:
    - Use 'spreadsheet' if user wants Excel/CSV/structured data output
    - Use 'response' for text/other outputs
-4. Connect nodes logically: input -> supervisor -> processing agents -> output
+5. Connect nodes logically: 
+   - For prompt workflows: prompt -> supervisor -> semantic_search -> processing agents -> output
+   - For upload workflows: upload -> supervisor -> transformer -> output
 
 When a user describes what they want to accomplish, analyze their requirements and:
 1. Suggest an appropriate workflow with the right nodes
@@ -108,16 +114,20 @@ Workflow JSON format:
 }}
 
 Guidelines:
-- ALWAYS start with 'prompt' node (required)
+- ALWAYS start with 'prompt' or 'upload' node (one is required)
 - ALWAYS include 'supervisor' agent after input (required)
-- Connect nodes logically: prompt -> supervisor -> processing -> output
+- For PROMPT workflows: ALWAYS include 'semantic_search' after supervisor to retrieve knowledge base context
+- For UPLOAD workflows: Do NOT include semantic_search (content comes from the uploaded file)
+- Connect nodes logically:
+  * Prompt workflows: prompt -> supervisor -> semantic_search -> [other agents] -> output
+  * Upload workflows: upload -> supervisor -> transformer -> output
 - Position nodes from left to right (x increases): start at x=100, increment by 250 for each column
 - Use y=100 for single-row workflows, adjust y for parallel branches
 - Include necessary intermediate agents based on requirements:
-  * Use 'upload' if user wants to upload files
   * Use 'transformer' if format conversion is needed (e.g., PDF to Excel)
-  * Use 'semantic_search' if knowledge base search is needed
-  * Use 'orchestrator' for complex tool selection
+  * Use 'orchestrator' for complex tool selection with multiple paths
+  * Use 'sampler' + 'synthesis' for high-quality text generation
+  * Use 'image_generator' for image creation tasks
   * Use 'sampler' + 'synthesis' for high-quality answers
 - Configure settings appropriately
 - Use 'spreadsheet' output for Excel/CSV/structured data needs
