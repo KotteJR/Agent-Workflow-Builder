@@ -116,16 +116,23 @@ export function WorkflowSidebar({
                 ${isExpanded ? 'w-80' : 'w-20'}
             `}
         >
-            {/* Logo */}
-            <div className="p-3 flex items-center justify-center border-b border-gray-100">
-                <img 
-                    src="/thefuture-cats-main-logo-001.png.webp" 
-                    alt="Logo" 
-                    className={`transition-all duration-300 ${isExpanded ? 'h-10' : 'h-8'}`}
-                />
-            </div>
             {/* Inner container for overflow management */}
             <div className="flex-1 flex flex-col overflow-hidden w-full relative">
+                {/* Logo / Brand */}
+                <div className="px-3 py-4 border-b border-gray-100 flex items-center justify-center overflow-hidden">
+                    <div className={`flex items-center gap-2 transition-all duration-300 ${isExpanded ? '' : 'flex-col'}`}>
+                        {/* Logo Icon */}
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-md">
+                            <span className="text-white font-bold text-lg">C</span>
+                        </div>
+                        {/* Brand Name */}
+                        <div className={`transition-all duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0 hidden'}`}>
+                            <div className="text-sm font-bold text-gray-900 leading-tight">Cogniveil</div>
+                            <div className="text-xs text-indigo-600 font-medium">Builder</div>
+                        </div>
+                    </div>
+                </div>
+                
                 {/* Workflow Actions */}
                 <div className="pt-3 pb-3 border-b border-gray-100 flex flex-col gap-3">
                         <button
