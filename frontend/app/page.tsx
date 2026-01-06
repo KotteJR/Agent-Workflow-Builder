@@ -437,6 +437,14 @@ function FlowCanvas() {
                 source: edge.source,
                 target: edge.target,
             }));
+            
+            // Debug: log workflow nodes to see file content
+            console.log("[DEBUG] Workflow nodes being sent:", workflowNodes.map(n => ({
+                id: n.id,
+                type: n.data.nodeType,
+                hasFiles: (n.data.uploadedFiles?.length || 0) > 0,
+                fileContentLength: n.data.uploadedFiles?.[0]?.content?.length || 0,
+            })));
 
             await executeWorkflow(query, workflowNodes, workflowEdges, (event, data) => {
                 if (event === "agent_start") {

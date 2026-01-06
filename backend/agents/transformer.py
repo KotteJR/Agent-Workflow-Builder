@@ -140,17 +140,30 @@ Output ONLY the structured data. No explanations, no markdown code blocks."""
         if spreadsheet_settings.get("extractionDepth"):
             extraction_depth = spreadsheet_settings.get("extractionDepth", extraction_depth)
         
-        # Get content to transform - check multiple sources
+        # Get content to transform - check multiple sources with logging
         content_to_transform = context.get("input_content")
+        source = "input_content" if content_to_transform else None
+        
         if not content_to_transform:
             content_to_transform = context.get("uploaded_file_content")
+            source = "uploaded_file_content" if content_to_transform else None
+            
         if not content_to_transform:
             content_to_transform = context.get("final_answer")
+            source = "final_answer" if content_to_transform else None
+            
         if not content_to_transform:
             snippets = context.get("context_snippets", [])
             content_to_transform = "\n\n".join(snippets) if snippets else ""
+            source = "context_snippets" if content_to_transform else None
+            
         if not content_to_transform:
             content_to_transform = context.get("user_message", "")
+            source = "user_message" if content_to_transform else None
+        
+        print(f"[TRANSFORMER] Content source: {source}")
+        print(f"[TRANSFORMER] Content length: {len(content_to_transform) if content_to_transform else 0}")
+        print(f"[TRANSFORMER] Content preview: {content_to_transform[:500] if content_to_transform else 'EMPTY'}...")
         
         if not content_to_transform:
             return AgentResult(

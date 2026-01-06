@@ -298,6 +298,8 @@ async def execute_workflow(
                         if file_contents:
                             context["uploaded_file_content"] = "\n\n".join(file_contents)
                             context["user_message"] = f"{user_message}\n\nUploaded files:\n{context['uploaded_file_content']}"
+                            print(f"[UPLOAD] Set uploaded_file_content with {len(context['uploaded_file_content'])} chars")
+                            print(f"[UPLOAD] Content preview: {context['uploaded_file_content'][:500]}...")
                     
                     yield _sse_event("agent_complete", {
                         "agent": node_id,
