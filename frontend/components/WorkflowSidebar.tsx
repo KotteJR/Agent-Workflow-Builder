@@ -116,6 +116,14 @@ export function WorkflowSidebar({
                 ${isExpanded ? 'w-80' : 'w-20'}
             `}
         >
+            {/* Logo */}
+            <div className="p-3 flex items-center justify-center border-b border-gray-100">
+                <img 
+                    src="/thefuture-cats-main-logo-001.png.webp" 
+                    alt="Logo" 
+                    className={`transition-all duration-300 ${isExpanded ? 'h-10' : 'h-8'}`}
+                />
+            </div>
             {/* Inner container for overflow management */}
             <div className="flex-1 flex flex-col overflow-hidden w-full relative">
                 {/* Workflow Actions */}
