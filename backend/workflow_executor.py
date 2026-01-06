@@ -372,8 +372,32 @@ async def execute_workflow(
                 print(f"[WORKFLOW] Skipping {node_id}: missing dependencies {missing_deps}")
                 continue
             
-            # Special handling for tool nodes connected to orchestrator
+            # === BRANCH ROUTING LOGIC ===
+            # A node should only execute if at least one of its upstream dependencies was executed
+            # If ALL dependencies were excluded, this node should also be excluded
             should_execute = True
+            
+            if dependencies:
+                # Check if any dependency was actually executed (not excluded)
+                has_executed_dependency = any(dep in executed_nodes and dep not in excluded_nodes for dep in dependencies)
+                
+                if not has_executed_dependency:
+                    # All our dependencies were excluded - we should be excluded too
+                    should_execute = False
+                    excluded_nodes.add(node_id)
+                    yield _sse_event("agent_complete", {
+                        "agent": node_id,
+                        "step": {
+                            "agent": node_type,
+                            "model": "none",
+                            "action": "exclude",
+                            "content": "Excluded (upstream path not taken)",
+                            "excluded": True,
+                        }
+                    })
+                    continue
+            
+            # Special handling for tool nodes connected to orchestrator
             if node_type == "image_generator":
                 # Check if orchestrator decided to use this tool
                 tools_to_execute = context.get("orchestrator_result", {}).get("tools_to_execute", [])
@@ -396,13 +420,15 @@ async def execute_workflow(
                     })
                     continue
             
-            # Skip sampler if image generation is planned or images were generated
+            # Tool nodes connected to orchestrator - only execute if selected
             if node_type == "sampler":
                 tools_to_execute = context.get("orchestrator_result", {}).get("tools_to_execute", [])
-                has_images = context.get("tool_outputs", {}).get("images")
-                image_planned = "image_generator" in tools_to_execute
-                
-                if has_images or image_planned:
+                is_connected_to_orchestrator = any(
+                    edge["source"].startswith("orchestrator") and edge["target"] == node_id
+                    for edge in valid_edges
+                )
+                # If orchestrator chose image_generator path, exclude sampler path
+                if is_connected_to_orchestrator and "image_generator" in tools_to_execute:
                     should_execute = False
                     excluded_nodes.add(node_id)
                     context["candidates"] = []
@@ -410,9 +436,9 @@ async def execute_workflow(
                         "agent": node_id,
                         "step": {
                             "agent": node_type,
-                            "model": small_model,
+                            "model": "none",
                             "action": "exclude",
-                            "content": "Excluded (image generation path selected)",
+                            "content": "Excluded (image path selected by orchestrator)",
                             "excluded": True,
                         }
                     })
