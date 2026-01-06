@@ -229,12 +229,16 @@ async def execute_workflow(
                 if node_type == "upload":
                     # Get uploaded files from node data
                     uploaded_files = node_data.get("uploadedFiles", [])
+                    print(f"[UPLOAD] Found {len(uploaded_files)} uploaded files")
                     if uploaded_files:
                         # Extract file content for context
                         file_contents = []
                         for file_info in uploaded_files:
                             file_name = file_info.get("name", "unknown")
                             file_content = file_info.get("content", "")
+                            
+                            print(f"[UPLOAD] File: {file_name}, content length: {len(file_content) if file_content else 0}")
+                            print(f"[UPLOAD] Content starts with: {file_content[:50] if file_content else 'NONE'}...")
                             
                             if file_content:
                                 # Parse PDF files
