@@ -27,45 +27,30 @@ class SupervisorAgent(BaseAgent):
     display_name = "Supervisor Agent"
     default_model = "small"
     
-    SYSTEM_PROMPT_TEMPLATE = """You are a Supervisor Agent that understands workflows and analyzes documents.
+    SYSTEM_PROMPT_TEMPLATE = """You are a Supervisor Agent that analyzes queries and plans workflow execution.
 
-WORKFLOW CONTEXT:
-- Downstream nodes: {available_nodes}
-- Planning style: {planning_style} | Optimization: {optimization_level}
+WORKFLOW STRUCTURE (nodes in this workflow):
+{available_nodes}
+
+Planning style: {planning_style} | Optimization: {optimization_level}
 {supervisor_instructions}
 
-AUTOMATIC WORKFLOW UNDERSTANDING:
-Based on the downstream nodes, automatically determine what to do:
-- If TRANSFORMER + SPREADSHEET are present → Extract document data into structured table format
-- If TRANSFORMER alone → Convert document to specified format
-- If SYNTHESIS is present → Summarize and synthesize information
-- If SEMANTIC_SEARCH is present → Prepare for knowledge retrieval
+YOUR JOB - Analyze the query and provide guidance for downstream nodes:
 
-YOUR JOB:
-1. **UNDERSTAND THE WORKFLOW** - What nodes come after you? What's the end goal?
-2. **ANALYZE THE DOCUMENT** - What type? What data is inside?
-3. **CREATE EXTRACTION PLAN** - Guide downstream agents on what to extract
-
-For SPREADSHEET workflows (most common):
-Analyze the document and provide:
-- Document type detected
-- ALL data that should become columns
-- What each row should represent
-- Specific entities/values found
+1. UNDERSTAND THE QUERY: What is the user asking for?
+2. IDENTIFY THE GOAL: Based on the workflow nodes, what's the end goal?
+   - If IMAGE_GENERATOR is present → User may want a visual/diagram
+   - If SEMANTIC_SEARCH is present → Need to find relevant information from knowledge base
+   - If SYNTHESIS is present → Need to generate a well-crafted text response
+   - If TRANSFORMER + SPREADSHEET are present → Extract data into structured format
+3. PROVIDE GUIDANCE: Give specific instructions for the downstream agents
 
 OUTPUT FORMAT:
-DOCUMENT TYPE: [Invoice/Contract/Resume/Report/Academic Paper/etc.]
-TARGET OUTPUT: [Based on workflow - spreadsheet/summary/etc.]
+QUERY ANALYSIS: [What the user wants]
+WORKFLOW PATH: [Which nodes should be activated based on the query]
+GUIDANCE: [Specific instructions for downstream agents]
 
-KEY DATA FOUND:
-- [List all extractable data points you identified]
-
-EXTRACTION PLAN FOR TRANSFORMER:
-- Columns: [Column1, Column2, Column3, ...]  
-- Rows: [What each row represents]
-- Structure: [Any special organization needed]
-
-Be specific - list actual data you found in the document."""
+Be concise and focused on guiding the workflow execution."""
 
     async def execute(
         self,
@@ -93,7 +78,11 @@ Be specific - list actual data you found in the document."""
         
         # Get downstream nodes from context
         downstream_nodes = context.get("downstream_nodes", [])
-        available_nodes = ", ".join(downstream_nodes) if downstream_nodes else "transformer, spreadsheet"
+        # Format as a clear list for the LLM
+        if downstream_nodes:
+            available_nodes = "\n".join([f"- {node}" for node in downstream_nodes])
+        else:
+            available_nodes = "- (no specific nodes detected)"
         
         # Check if there's uploaded content - if so, use GPT-4 for deep analysis
         has_uploaded_content = bool(context.get("uploaded_file_content"))

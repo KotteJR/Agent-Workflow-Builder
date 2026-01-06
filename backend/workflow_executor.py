@@ -396,9 +396,13 @@ async def execute_workflow(
                     })
                     continue
             
-            # Skip sampler if images were generated
+            # Skip sampler if image generation is planned or images were generated
             if node_type == "sampler":
-                if context.get("tool_outputs", {}).get("images"):
+                tools_to_execute = context.get("orchestrator_result", {}).get("tools_to_execute", [])
+                has_images = context.get("tool_outputs", {}).get("images")
+                image_planned = "image_generator" in tools_to_execute
+                
+                if has_images or image_planned:
                     should_execute = False
                     excluded_nodes.add(node_id)
                     context["candidates"] = []
@@ -408,7 +412,7 @@ async def execute_workflow(
                             "agent": node_type,
                             "model": small_model,
                             "action": "exclude",
-                            "content": "Excluded (image generation request)",
+                            "content": "Excluded (image generation path selected)",
                             "excluded": True,
                         }
                     })
