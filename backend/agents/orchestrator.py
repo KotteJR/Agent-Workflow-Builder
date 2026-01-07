@@ -7,10 +7,14 @@ about which tools are needed to answer the query.
 
 import json
 import re
+import logging
 from typing import Any, Dict, List, Optional
 
 from agents.base import BaseAgent, AgentResult
 from models import LLMClientProtocol
+
+# Get workflow logger
+logger = logging.getLogger("workflow")
 
 
 class OrchestratorAgent(BaseAgent):
@@ -72,12 +76,19 @@ Output a JSON object with:
         Returns:
             AgentResult with tool decisions
         """
+        logger.info("=" * 50)
+        logger.info("ORCHESTRATOR: Starting tool selection")
+        logger.info("=" * 50)
+        
         settings = settings or {}
         tool_strategy = settings.get("toolSelectionStrategy", "balanced")
         max_tools = settings.get("maxTools", 3)
         
+        logger.debug(f"Tool strategy: {tool_strategy}, Max tools: {max_tools}")
+        
         # Get semantic results from context
         semantic_results = context.get("semantic_results", [])
+        logger.debug(f"Semantic results count: {len(semantic_results)}")
         
         # Build context text
         if semantic_results:
@@ -92,6 +103,8 @@ Output a JSON object with:
         available_tools = context.get("available_tools", [])
         tools_list = ", ".join(available_tools) if available_tools else "none"
         
+        logger.info(f"Available tools in workflow: {available_tools}")
+        
         system_prompt = self._build_system_prompt(
             self.SYSTEM_PROMPT_TEMPLATE,
             available_tools=tools_list,
@@ -99,7 +112,7 @@ Output a JSON object with:
             max_tools=max_tools,
         )
         
-        user_prompt = f"""User Question: {user_message}
+        user_prompt = f"""User Question: {user_message[:500]}
 
 Semantic Search Results (from knowledge base):
 {context_text}
@@ -116,6 +129,8 @@ Decide which tools to execute (if any) and provide instructions."""
             {"role": "user", "content": user_prompt},
         ]
         
+        logger.debug("Sending request to LLM for tool selection...")
+        
         response = await self._chat(
             messages=messages,
             model=model or "gpt-4o-mini",
@@ -123,15 +138,20 @@ Decide which tools to execute (if any) and provide instructions."""
             max_tokens=300,
         )
         
+        logger.debug(f"LLM Response: {response[:500]}...")
+        
         # Parse JSON response
         try:
             json_match = re.search(r'\{[^}]+\}', response, re.DOTALL)
             if json_match:
                 parsed = json.loads(json_match.group())
+                logger.debug(f"Parsed JSON: {parsed}")
             else:
                 parsed = json.loads(response)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             # Conservative fallback - no tools
+            logger.warning(f"Failed to parse orchestrator response: {e}")
+            logger.warning(f"Raw response: {response}")
             parsed = {
                 "tools_to_execute": [],
                 "reasoning": "Failed to parse response, defaulting to no additional tools",
@@ -141,6 +161,21 @@ Decide which tools to execute (if any) and provide instructions."""
         reasoning = parsed.get("reasoning", "")
         image_prompt = parsed.get("image_prompt", user_message)
         image_type = parsed.get("image_type", "photo")
+        
+        # Log the critical decision
+        logger.info("=" * 50)
+        logger.info(f"ORCHESTRATOR DECISION:")
+        logger.info(f"  Tools selected: {tools_to_execute}")
+        logger.info(f"  Reasoning: {reasoning}")
+        if "image_generator" in tools_to_execute:
+            logger.info(f"  Image prompt: {image_prompt[:100]}...")
+            logger.info(f"  Image type: {image_type}")
+        logger.info("=" * 50)
+        
+        # Warn if multiple conflicting paths might be selected
+        if "image_generator" in tools_to_execute and len(tools_to_execute) > 1:
+            logger.warning("⚠️  Multiple tools selected including image_generator!")
+            logger.warning("   This may cause branch conflicts!")
         
         return AgentResult(
             agent=self.agent_id,

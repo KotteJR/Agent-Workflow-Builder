@@ -3,11 +3,15 @@ Base agent class that all agents inherit from.
 Provides common functionality and interface definition.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from models import LLMClientProtocol
+
+# Get workflow logger
+logger = logging.getLogger("workflow")
 
 
 @dataclass
@@ -48,6 +52,7 @@ class BaseAgent(ABC):
             llm_client: The LLM client to use for completions
         """
         self.llm = llm_client
+        logger.debug(f"Initialized agent: {self.agent_id}")
     
     @abstractmethod
     async def execute(

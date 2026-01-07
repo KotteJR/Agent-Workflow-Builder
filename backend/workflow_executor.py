@@ -270,11 +270,19 @@ async def execute_workflow(
         for node_id in execution_order:
             node = node_map.get(node_id)
             if not node:
+                workflow_logger.warning(f"Node {node_id} not found in node_map - skipping")
                 continue
             
             node_data = node.get("data", {})
             node_type = node_data.get("nodeType", node_id.split("-")[0])
             node_settings = node_data.get("settings", {})
+            
+            # Get dependencies for this node
+            dependencies = get_node_dependencies(node_id, valid_edges)
+            
+            # Log node evaluation start
+            debugger.log_node_start(node_id, node_type, dependencies)
+            debugger.log_dependency_check(node_id, dependencies, executed_nodes, excluded_nodes)
             
             # Handle input nodes
             if node_type in INPUT_NODE_TYPES:
@@ -416,15 +424,14 @@ async def execute_workflow(
                     })
                 continue
             
-            # Check dependencies
-            dependencies = get_node_dependencies(node_id, valid_edges)
+            # Check dependencies (already computed above)
             missing_deps = [
                 dep for dep in dependencies
                 if dep not in executed_nodes and dep not in excluded_nodes
             ]
             
             if missing_deps:
-                print(f"[WORKFLOW] Skipping {node_id}: missing dependencies {missing_deps}")
+                debugger.log_node_skipped(node_id, f"Missing dependencies: {missing_deps}")
                 continue
             
             # === BRANCH ROUTING LOGIC ===
@@ -432,14 +439,33 @@ async def execute_workflow(
             # If ALL dependencies were excluded, this node should also be excluded
             should_execute = True
             
+            workflow_logger.debug(f"Branch routing check for {node_id}:")
+            workflow_logger.debug(f"  Dependencies: {dependencies}")
+            workflow_logger.debug(f"  Executed nodes: {executed_nodes}")
+            workflow_logger.debug(f"  Excluded nodes: {excluded_nodes}")
+            
             if dependencies:
                 # Check if any dependency was actually executed (not excluded)
-                has_executed_dependency = any(dep in executed_nodes and dep not in excluded_nodes for dep in dependencies)
+                executed_deps = [dep for dep in dependencies if dep in executed_nodes and dep not in excluded_nodes]
+                excluded_deps = [dep for dep in dependencies if dep in excluded_nodes]
+                
+                workflow_logger.debug(f"  Executed dependencies: {executed_deps}")
+                workflow_logger.debug(f"  Excluded dependencies: {excluded_deps}")
+                
+                has_executed_dependency = len(executed_deps) > 0
                 
                 if not has_executed_dependency:
                     # All our dependencies were excluded - we should be excluded too
                     should_execute = False
                     excluded_nodes.add(node_id)
+                    
+                    debugger.log_branch_decision(
+                        node_id, node_type, "EXCLUDE",
+                        f"All dependencies excluded: {excluded_deps}",
+                        {"executed_deps": executed_deps, "excluded_deps": excluded_deps}
+                    )
+                    debugger.log_node_excluded(node_id, node_type, "All upstream dependencies were excluded")
+                    
                     yield _sse_event("agent_complete", {
                         "agent": node_id,
                         "step": {
@@ -451,6 +477,12 @@ async def execute_workflow(
                         }
                     })
                     continue
+                else:
+                    debugger.log_branch_decision(
+                        node_id, node_type, "EXECUTE",
+                        f"Has executed dependencies: {executed_deps}",
+                        {"executed_deps": executed_deps, "excluded_deps": excluded_deps}
+                    )
             
             # Special handling for tool nodes connected to orchestrator
             if node_type == "image_generator":
@@ -460,9 +492,22 @@ async def execute_workflow(
                     edge["source"].startswith("orchestrator") and edge["target"] == node_id
                     for edge in valid_edges
                 )
+                
+                workflow_logger.info(f"IMAGE_GENERATOR check:")
+                workflow_logger.info(f"  Tools to execute: {tools_to_execute}")
+                workflow_logger.info(f"  Connected to orchestrator: {is_connected_to_orchestrator}")
+                
                 if is_connected_to_orchestrator and "image_generator" not in tools_to_execute:
                     should_execute = False
                     excluded_nodes.add(node_id)
+                    
+                    debugger.log_branch_decision(
+                        node_id, node_type, "EXCLUDE",
+                        f"Orchestrator did not select image_generator. Selected: {tools_to_execute}",
+                        {"tools_to_execute": tools_to_execute}
+                    )
+                    debugger.log_node_excluded(node_id, node_type, "Not selected by orchestrator")
+                    
                     yield _sse_event("agent_complete", {
                         "agent": node_id,
                         "step": {
@@ -474,6 +519,12 @@ async def execute_workflow(
                         }
                     })
                     continue
+                elif is_connected_to_orchestrator and "image_generator" in tools_to_execute:
+                    debugger.log_branch_decision(
+                        node_id, node_type, "EXECUTE",
+                        "Orchestrator selected image_generator",
+                        {"tools_to_execute": tools_to_execute}
+                    )
             
             # Tool nodes connected to orchestrator - only execute if selected
             if node_type == "sampler":
@@ -482,11 +533,24 @@ async def execute_workflow(
                     edge["source"].startswith("orchestrator") and edge["target"] == node_id
                     for edge in valid_edges
                 )
+                
+                workflow_logger.info(f"SAMPLER check:")
+                workflow_logger.info(f"  Tools to execute: {tools_to_execute}")
+                workflow_logger.info(f"  Connected to orchestrator: {is_connected_to_orchestrator}")
+                
                 # If orchestrator chose image_generator path, exclude sampler path
                 if is_connected_to_orchestrator and "image_generator" in tools_to_execute:
                     should_execute = False
                     excluded_nodes.add(node_id)
                     context["candidates"] = []
+                    
+                    debugger.log_branch_decision(
+                        node_id, node_type, "EXCLUDE",
+                        f"Orchestrator selected image_generator path. Sampler path excluded.",
+                        {"tools_to_execute": tools_to_execute}
+                    )
+                    debugger.log_node_excluded(node_id, node_type, "Image path was selected by orchestrator")
+                    
                     yield _sse_event("agent_complete", {
                         "agent": node_id,
                         "step": {
@@ -498,6 +562,12 @@ async def execute_workflow(
                         }
                     })
                     continue
+                else:
+                    debugger.log_branch_decision(
+                        node_id, node_type, "EXECUTE",
+                        f"Sampler path active (image_generator not selected)",
+                        {"tools_to_execute": tools_to_execute}
+                    )
             
             if not should_execute:
                 continue
@@ -522,7 +592,10 @@ async def execute_workflow(
             
             if result:
                 # Update context with agent's results
+                workflow_logger.debug(f"Context updates from {node_id}:")
                 for key, value in result.context_updates.items():
+                    debugger.log_context_update(key, value, node_id)
+                    
                     if key == "context_snippets":
                         context["context_snippets"].extend(value)
                     elif key == "images":
@@ -531,6 +604,16 @@ async def execute_workflow(
                         context["docs"].extend(value)
                     else:
                         context[key] = value
+                    
+                    # Special logging for orchestrator decisions
+                    if key == "orchestrator_result":
+                        tools = value.get("tools_to_execute", [])
+                        reasoning = value.get("reasoning", "")
+                        debugger.log_orchestrator_decision(
+                            tools,
+                            context.get("available_tools", []),
+                            reasoning
+                        )
                 
                 # Record step
                 step = {
@@ -542,6 +625,8 @@ async def execute_workflow(
                 }
                 steps.append(step)
                 executed_nodes.add(node_id)
+                
+                debugger.log_node_execution(node_id, node_type, result.action, result.content)
                 
                 yield _sse_event("agent_complete", {"agent": node_id, "step": step})
             else:
@@ -566,6 +651,14 @@ async def execute_workflow(
         # Calculate metrics
         workflow_latency = round((time.time() - workflow_start) * 1000, 2)
         
+        # Log execution summary
+        debugger.log_execution_summary(
+            executed_nodes,
+            excluded_nodes,
+            len(reachable_nodes),
+            workflow_latency
+        )
+        
         # Prepare final tool outputs
         final_tool_outputs = {
             "images": [
@@ -585,6 +678,9 @@ async def execute_workflow(
         # Check if spreadsheet output was requested
         output_format = context.get("output_format", "text")
         
+        workflow_logger.info(f"Final output format: {output_format}")
+        workflow_logger.info(f"Final answer length: {len(final_answer)} chars")
+        
         yield _sse_event("done", {
             "answer": final_answer,
             "tool_outputs": final_tool_outputs,
@@ -594,9 +690,7 @@ async def execute_workflow(
         })
         
     except Exception as exc:
-        import traceback
-        print(f"[WORKFLOW] ERROR: {exc}")
-        traceback.print_exc()
+        debugger.log_error(f"Workflow execution failed", exc)
         yield _sse_event("error", {"message": str(exc)})
 
 

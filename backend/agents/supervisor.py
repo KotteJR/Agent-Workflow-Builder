@@ -6,10 +6,14 @@ execution plan based on the query and available tools.
 """
 
 import json
+import logging
 from typing import Any, Dict, List, Optional
 
 from agents.base import BaseAgent, AgentResult
 from models import LLMClientProtocol
+
+# Get workflow logger
+logger = logging.getLogger("workflow")
 
 
 class SupervisorAgent(BaseAgent):
@@ -71,13 +75,21 @@ Be concise and focused on guiding the workflow execution."""
         Returns:
             AgentResult with detailed extraction plan
         """
+        logger.info("=" * 50)
+        logger.info("SUPERVISOR: Starting workflow analysis")
+        logger.info("=" * 50)
+        
         settings = settings or {}
         planning_style = settings.get("planningStyle", "optimized")
         optimization_level = settings.get("optimizationLevel", "basic")
         supervisor_prompt = settings.get("supervisorPrompt", "")
         
+        logger.debug(f"Planning style: {planning_style}, Optimization: {optimization_level}")
+        
         # Get downstream nodes from context
         downstream_nodes = context.get("downstream_nodes", [])
+        logger.info(f"Downstream nodes available: {downstream_nodes}")
+        
         # Format as a clear list for the LLM
         if downstream_nodes:
             available_nodes = "\n".join([f"- {node}" for node in downstream_nodes])
@@ -86,11 +98,13 @@ Be concise and focused on guiding the workflow execution."""
         
         # Check if there's uploaded content - if so, use GPT-4 for deep analysis
         has_uploaded_content = bool(context.get("uploaded_file_content"))
+        logger.debug(f"Has uploaded content: {has_uploaded_content}")
         
         # Add supervisor instructions if provided
         supervisor_instructions = ""
         if supervisor_prompt:
             supervisor_instructions = f"\nAdditional instructions from user:\n{supervisor_prompt}\n"
+            logger.debug(f"Custom supervisor prompt provided")
         
         system_prompt = self._build_system_prompt(
             self.SYSTEM_PROMPT_TEMPLATE,
@@ -120,6 +134,7 @@ Be concise and focused on guiding the workflow execution."""
         
         # Use GPT-4 when analyzing documents for better understanding
         actual_model = "gpt-4o" if has_uploaded_content else (model or "gpt-4o-mini")
+        logger.debug(f"Using model: {actual_model}")
         
         # More tokens for document analysis
         max_tokens = 1500 if has_uploaded_content else 600
@@ -132,6 +147,15 @@ Be concise and focused on guiding the workflow execution."""
         )
         
         plan = response.strip()
+        
+        logger.info("SUPERVISOR PLAN:")
+        logger.info("-" * 40)
+        # Log first 500 chars of plan
+        for line in plan[:500].split('\n'):
+            logger.info(f"  {line}")
+        if len(plan) > 500:
+            logger.info("  [... truncated ...]")
+        logger.info("-" * 40)
         
         return AgentResult(
             agent=self.agent_id,
