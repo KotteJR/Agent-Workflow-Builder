@@ -8,6 +8,7 @@ following strict dependency order using topological sort.
 
 import json
 import time
+import uuid
 from collections import deque
 from typing import Any, AsyncGenerator, Dict, List, Optional, Set, Tuple
 
@@ -25,6 +26,7 @@ from agents.transformer import TransformerAgent
 from agents.image_generator import ImageGeneratorAgent
 import retrieval
 from demo_handler import is_demo_workflow
+from workflow_logger import debugger, workflow_logger
 
 
 # Agent registry - maps node types to agent classes
@@ -143,6 +145,10 @@ async def execute_workflow(
     Yields:
         SSE events for workflow execution
     """
+    # Initialize debugging session
+    execution_id = str(uuid.uuid4())[:8]
+    debugger.start_execution(execution_id)
+    
     workflow_start = time.time()
     steps: List[Dict[str, Any]] = []
     
@@ -151,9 +157,17 @@ async def execute_workflow(
     small_model = config.get_model_config()["small"]
     large_model = config.get_model_config()["large"]
     
+    workflow_logger.debug(f"Using models - small: {small_model}, large: {large_model}")
+    
     # Extract node IDs and types
     node_map = {node["id"]: node for node in workflow_nodes}
     all_node_ids = set(node_map.keys())
+    
+    # Log node types for clarity
+    workflow_logger.debug("Node registry:")
+    for nid, node in node_map.items():
+        ntype = node.get("data", {}).get("nodeType", "unknown")
+        workflow_logger.debug(f"  {nid} -> {ntype}")
     
     # Find input nodes (nodes with no incoming edges or input types)
     nodes_with_incoming = {edge["target"] for edge in workflow_edges}
@@ -176,9 +190,8 @@ async def execute_workflow(
     # Topologically sort reachable nodes
     execution_order = topological_sort(list(reachable_nodes), valid_edges)
     
-    print(f"[WORKFLOW] Input nodes: {input_nodes}")
-    print(f"[WORKFLOW] Reachable nodes: {reachable_nodes}")
-    print(f"[WORKFLOW] Execution order: {execution_order}")
+    # Log workflow setup
+    debugger.log_workflow_setup(input_nodes, reachable_nodes, execution_order, valid_edges)
     
     # Extract spreadsheet node settings if present (for transformer to use)
     spreadsheet_settings = {}

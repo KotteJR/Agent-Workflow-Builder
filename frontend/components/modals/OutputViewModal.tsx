@@ -1,7 +1,7 @@
 "use client";
 
-import { memo, useCallback } from "react";
-import { HiXMark, HiDocumentArrowDown, HiClipboardDocument, HiPhoto } from "react-icons/hi2";
+import { memo, useCallback, useMemo, useState } from "react";
+import { HiXMark, HiDocumentArrowDown, HiClipboardDocument, HiTableCells, HiCodeBracket } from "react-icons/hi2";
 import type { NodeOutputData } from "@/lib/types";
 
 interface OutputViewModalProps {
@@ -12,6 +12,42 @@ interface OutputViewModalProps {
     outputData?: NodeOutputData;
 }
 
+// Parse CSV content into rows and columns
+function parseCSV(content: string): string[][] {
+    const rows: string[][] = [];
+    const lines = content.split('\n');
+    
+    for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        const row: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                    current += '"';
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === ',' && !inQuotes) {
+                row.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        row.push(current.trim());
+        rows.push(row);
+    }
+    
+    return rows;
+}
+
 export const OutputViewModal = memo(function OutputViewModal({
     isOpen,
     onClose,
@@ -19,14 +55,26 @@ export const OutputViewModal = memo(function OutputViewModal({
     nodeType,
     outputData,
 }: OutputViewModalProps) {
+    const [viewMode, setViewMode] = useState<'table' | 'raw'>('table');
+    
     if (!isOpen) return null;
 
     const hasImages = outputData?.images && outputData.images.length > 0;
+    const isSpreadsheet = nodeType === "spreadsheet" || outputData?.format === "csv" || outputData?.format === "spreadsheet";
+
+    // Parse CSV data for table view
+    const parsedData = useMemo(() => {
+        if (!isSpreadsheet || !outputData?.content) return null;
+        try {
+            return parseCSV(outputData.content);
+        } catch {
+            return null;
+        }
+    }, [isSpreadsheet, outputData?.content]);
 
     const handleDownload = useCallback(() => {
         if (!outputData?.content) return;
         
-        const isSpreadsheet = nodeType === "spreadsheet" || outputData.format === "csv" || outputData.format === "spreadsheet";
         const extension = isSpreadsheet ? "csv" : "txt";
         const mimeType = isSpreadsheet ? "text/csv" : "text/plain";
         
@@ -39,7 +87,7 @@ export const OutputViewModal = memo(function OutputViewModal({
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    }, [outputData, nodeType]);
+    }, [outputData, isSpreadsheet]);
 
     const handleDownloadImage = useCallback((imageUrl: string, index: number) => {
         const a = document.createElement("a");
@@ -81,6 +129,35 @@ export const OutputViewModal = memo(function OutputViewModal({
                     <div className="flex items-center gap-2">
                         {!hasImages && (
                             <>
+                                {/* View mode toggle for spreadsheets */}
+                                {isSpreadsheet && parsedData && (
+                                    <div className="flex items-center bg-gray-100 rounded-lg p-0.5 mr-2">
+                                        <button
+                                            onClick={() => setViewMode('table')}
+                                            className={`px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1 ${
+                                                viewMode === 'table'
+                                                    ? 'bg-white shadow-sm text-gray-900'
+                                                    : 'text-gray-600 hover:text-gray-900'
+                                            }`}
+                                            title="Table view"
+                                        >
+                                            <HiTableCells className="w-4 h-4" />
+                                            Table
+                                        </button>
+                                        <button
+                                            onClick={() => setViewMode('raw')}
+                                            className={`px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1 ${
+                                                viewMode === 'raw'
+                                                    ? 'bg-white shadow-sm text-gray-900'
+                                                    : 'text-gray-600 hover:text-gray-900'
+                                            }`}
+                                            title="Raw CSV"
+                                        >
+                                            <HiCodeBracket className="w-4 h-4" />
+                                            Raw
+                                        </button>
+                                    </div>
+                                )}
                                 <button
                                     onClick={handleCopyToClipboard}
                                     className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1.5"
@@ -94,7 +171,7 @@ export const OutputViewModal = memo(function OutputViewModal({
                                     className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5"
                                 >
                                     <HiDocumentArrowDown className="w-4 h-4" />
-                                    Download {nodeType === "spreadsheet" ? "CSV" : ""}
+                                    Download {isSpreadsheet ? "CSV" : ""}
                                 </button>
                             </>
                         )}
@@ -163,21 +240,64 @@ export const OutputViewModal = memo(function OutputViewModal({
                     {!hasImages && outputData?.content ? (
                         <div className="relative">
                             {/* Format indicator */}
-                            <div className="absolute top-2 right-2 px-2 py-1 bg-gray-100 rounded text-xs text-gray-600 uppercase">
+                            <div className="absolute top-2 right-2 px-2 py-1 bg-gray-100 rounded text-xs text-gray-600 uppercase z-10">
                                 {outputData.format || "text"}
                             </div>
                             
-                            {/* Output content */}
-                            <pre className="p-4 bg-gray-50 rounded-lg text-sm font-mono whitespace-pre-wrap overflow-x-auto border border-gray-200">
-                                {outputData.content}
-                            </pre>
+                            {/* Table view for spreadsheets */}
+                            {isSpreadsheet && parsedData && viewMode === 'table' ? (
+                                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                    <div className="overflow-auto max-h-[60vh]">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-gradient-to-b from-gray-50 to-gray-100 sticky top-0">
+                                                {parsedData.length > 0 && (
+                                                    <tr>
+                                                        {parsedData[0].map((header, idx) => (
+                                                            <th
+                                                                key={idx}
+                                                                className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 whitespace-nowrap"
+                                                            >
+                                                                {header.replace(/^"|"$/g, '')}
+                                                            </th>
+                                                        ))}
+                                                    </tr>
+                                                )}
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-100">
+                                                {parsedData.slice(1).map((row, rowIdx) => (
+                                                    <tr
+                                                        key={rowIdx}
+                                                        className="hover:bg-blue-50/50 transition-colors"
+                                                    >
+                                                        {row.map((cell, cellIdx) => (
+                                                            <td
+                                                                key={cellIdx}
+                                                                className="px-4 py-2.5 text-gray-700 border-b border-gray-50"
+                                                            >
+                                                                <div className="max-w-md truncate" title={cell.replace(/^"|"$/g, '')}>
+                                                                    {cell.replace(/^"|"$/g, '')}
+                                                                </div>
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Raw text view */
+                                <pre className="p-4 bg-gray-50 rounded-lg text-sm font-mono whitespace-pre-wrap overflow-x-auto border border-gray-200">
+                                    {outputData.content}
+                                </pre>
+                            )}
                             
                             {/* Stats */}
                             <div className="mt-2 text-xs text-gray-500">
                                 {outputData.content.length.toLocaleString()} characters
-                                {nodeType === "spreadsheet" && (
+                                {isSpreadsheet && parsedData && (
                                     <span className="ml-2">
-                                        • {outputData.content.split("\n").length} rows
+                                        • {parsedData.length} rows × {parsedData[0]?.length || 0} columns
                                     </span>
                                 )}
                             </div>

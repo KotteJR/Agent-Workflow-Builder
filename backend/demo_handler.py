@@ -18,8 +18,6 @@ DEMO_FILES = {
     "invoice_sample.pdf": ("invoice_output.csv", "Invoice data extraction"),
     "contract_sample.pdf": ("contract_output.csv", "Contract clause extraction"),
     "resume_sample.pdf": ("resume_output.csv", "Resume data extraction"),
-    "report_sample.pdf": ("report_output.csv", "Report findings extraction"),
-    # Add more demo files as needed
 }
 
 

@@ -1,0 +1,151 @@
+{
+  "id": "9d6709b9",
+  "name": "Text or Image Generation Workflow",
+  "user_id": "default",
+  "nodes": [
+    {
+      "id": "node-1",
+      "type": "workflow",
+      "position": {
+        "x": -15,
+        "y": 165
+      },
+      "data": {
+        "nodeType": "prompt",
+        "label": "Prompt",
+        "settings": {},
+        "promptText": "generate me a diagram of the 7 hcaap principles"
+      }
+    },
+    {
+      "id": "node-2",
+      "type": "workflow",
+      "position": {
+        "x": 285,
+        "y": 90
+      },
+      "data": {
+        "nodeType": "supervisor",
+        "label": "Supervisor Agent",
+        "settings": {
+          "planningStyle": "detailed",
+          "optimizationLevel": "basic",
+          "supervisorPrompt": "Determine if the prompt requires text or image generation."
+        }
+      }
+    },
+    {
+      "id": "node-3",
+      "type": "workflow",
+      "position": {
+        "x": 600,
+        "y": -30
+      },
+      "data": {
+        "nodeType": "semantic_search",
+        "label": "Semantic Search",
+        "settings": {
+          "topK": 5,
+          "enableReranking": true
+        }
+      }
+    },
+    {
+      "id": "node-4",
+      "type": "workflow",
+      "position": {
+        "x": 855,
+        "y": -30
+      },
+      "data": {
+        "nodeType": "sampler",
+        "label": "Sampler",
+        "settings": {
+          "numResponses": 5
+        }
+      }
+    },
+    {
+      "id": "node-5",
+      "type": "workflow",
+      "position": {
+        "x": 1110,
+        "y": -30
+      },
+      "data": {
+        "nodeType": "synthesis",
+        "label": "Synthesis",
+        "settings": {
+          "maxWords": 200
+        }
+      }
+    },
+    {
+      "id": "node-6",
+      "type": "workflow",
+      "position": {
+        "x": 855,
+        "y": 150
+      },
+      "data": {
+        "nodeType": "image_generator",
+        "label": "Image Generator",
+        "settings": {
+          "imageType": "artistic"
+        }
+      }
+    },
+    {
+      "id": "node-7",
+      "type": "workflow",
+      "position": {
+        "x": 1440,
+        "y": 60
+      },
+      "data": {
+        "nodeType": "response",
+        "label": "Response",
+        "settings": {}
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "source": "node-1",
+      "target": "node-2"
+    },
+    {
+      "id": "edge-2",
+      "source": "node-2",
+      "target": "node-3"
+    },
+    {
+      "id": "edge-3",
+      "source": "node-3",
+      "target": "node-4"
+    },
+    {
+      "id": "edge-4",
+      "source": "node-4",
+      "target": "node-5"
+    },
+    {
+      "id": "edge-5",
+      "source": "node-5",
+      "target": "node-7"
+    },
+    {
+      "id": "edge-6",
+      "source": "node-2",
+      "target": "node-6"
+    },
+    {
+      "id": "edge-7",
+      "source": "node-6",
+      "target": "node-7"
+    }
+  ],
+  "created_at": "2026-01-07T12:12:43.719006Z",
+  "updated_at": "2026-01-07T12:15:17.714521Z"
+}

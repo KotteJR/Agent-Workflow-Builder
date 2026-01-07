@@ -26,7 +26,7 @@ class OrchestratorAgent(BaseAgent):
     
     agent_id = "orchestrator"
     display_name = "Tool Orchestrator"
-    default_model = "small"
+    default_model = "large"
     
     SYSTEM_PROMPT_TEMPLATE = """You are a Tool Orchestrator Agent. You have access to semantic search results from the knowledge base.
 
@@ -42,6 +42,8 @@ Decision criteria:
 - **image_generator**: ONLY use if the user explicitly asks for an image, diagram, or visual (e.g., "Show me a diagram", "Create an image").
 
 If semantic search results are relevant and sufficient, set tools_to_execute to [] (empty array).
+
+ONLY CHOOSE ONE PATH; DO NOT USE VERBALIZED SAMPLING NODE OR SYNTHESIS IF IMAGE GENERATION IS SELECTED!!! OR VISE VERSA!!!
 
 Output a JSON object with:
 {{
