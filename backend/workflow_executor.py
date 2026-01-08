@@ -720,20 +720,20 @@ async def execute_workflow(
                     
                     if should_exclude:
                         workflow_logger.info(f"SUPERVISOR: Excluding {node_id} ({node_type}) - not on {selected_path} path")
-                    should_execute = False
-                    excluded_nodes.add(node_id)
+                        should_execute = False
+                        excluded_nodes.add(node_id)
                         
-                    yield _sse_event("agent_complete", {
-                        "agent": node_id,
-                        "step": {
-                            "agent": node_type,
-                            "model": "none",
-                            "action": "exclude",
+                        yield _sse_event("agent_complete", {
+                            "agent": node_id,
+                            "step": {
+                                "agent": node_type,
+                                "model": "none",
+                                "action": "exclude",
                                 "content": f"Excluded (supervisor selected: {selected_path})",
-                            "excluded": True,
-                        }
-                    })
-                    continue
+                                "excluded": True,
+                            }
+                        })
+                        continue
             
             if not should_execute:
                 continue
