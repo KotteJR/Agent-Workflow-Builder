@@ -25,7 +25,17 @@ from agents.formatting import FormattingAgent
 from agents.transformer import TransformerAgent
 from agents.image_generator import ImageGeneratorAgent
 from agents.translator import TranslatorAgent
+import os
+
+# Use pgvector if DATABASE_URL is set, otherwise fallback to file-based
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+if DATABASE_URL:
+    import retrieval_pgvector as retrieval
+    print("[WORKFLOW] Using pgvector for semantic search")
+else:
 import retrieval
+    print("[WORKFLOW] Using file-based retrieval")
+
 from demo_handler import is_demo_workflow
 from workflow_logger import debugger, workflow_logger
 
@@ -710,20 +720,20 @@ async def execute_workflow(
                     
                     if should_exclude:
                         workflow_logger.info(f"SUPERVISOR: Excluding {node_id} ({node_type}) - not on {selected_path} path")
-                        should_execute = False
-                        excluded_nodes.add(node_id)
+                    should_execute = False
+                    excluded_nodes.add(node_id)
                         
-                        yield _sse_event("agent_complete", {
-                            "agent": node_id,
-                            "step": {
-                                "agent": node_type,
-                                "model": "none",
-                                "action": "exclude",
+                    yield _sse_event("agent_complete", {
+                        "agent": node_id,
+                        "step": {
+                            "agent": node_type,
+                            "model": "none",
+                            "action": "exclude",
                                 "content": f"Excluded (supervisor selected: {selected_path})",
-                                "excluded": True,
-                            }
-                        })
-                        continue
+                            "excluded": True,
+                        }
+                    })
+                    continue
             
             if not should_execute:
                 continue
@@ -927,9 +937,9 @@ async def _execute_agent(
                 
                 # Check if this is a tool node that should be available
                 if other_node_type == "image_generator" and "image_generator" not in available_tools:
-                    available_tools.append("image_generator")
+                available_tools.append("image_generator")
                 elif other_node_type == "web_search" and "web_search" not in available_tools:
-                    available_tools.append("web_search")
+                available_tools.append("web_search")
         
         workflow_logger.debug(f"Orchestrator available tools detection:")
         workflow_logger.debug(f"  Reachable nodes: {reachable_nodes}")

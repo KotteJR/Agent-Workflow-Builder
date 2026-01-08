@@ -35,7 +35,7 @@ except ImportError:
 
 
 def extract_text_from_pdf(filepath: Path) -> str:
-    """Extract text from a PDF file."""
+    """Extract text from a PDF file. Tries OCR if text extraction fails."""
     if not HAS_PYPDF:
         return ""
     
@@ -44,9 +44,35 @@ def extract_text_from_pdf(filepath: Path) -> str:
         text_parts = []
         for page in reader.pages:
             text = page.extract_text()
-            if text:
+            if text and text.strip():
                 text_parts.append(text)
-        return "\n\n".join(text_parts)
+        
+        extracted_text = "\n\n".join(text_parts)
+        
+        # If no text extracted, try OCR (for scanned PDFs)
+        if not extracted_text.strip():
+            try:
+                from pdf2image import convert_from_path
+                import pytesseract
+                
+                # Convert PDF to images
+                images = convert_from_path(str(filepath), dpi=200)
+                ocr_text_parts = []
+                
+                for img in images:
+                    ocr_text = pytesseract.image_to_string(img, lang='eng+ara')
+                    if ocr_text.strip():
+                        ocr_text_parts.append(ocr_text)
+                
+                if ocr_text_parts:
+                    extracted_text = "\n\n".join(ocr_text_parts)
+                    print(f"    (Used OCR for {filepath.name})")
+            except ImportError:
+                pass  # OCR libraries not available
+            except Exception as e:
+                print(f"    (OCR failed for {filepath.name}: {e})")
+        
+        return extracted_text
     except Exception as e:
         print(f"  Warning: Could not read PDF {filepath.name}: {e}")
         return ""
@@ -81,7 +107,13 @@ def read_document(filepath: Path) -> dict:
         return None
     
     if not content.strip():
-        print(f"  Skipping {filepath.name}: No content extracted")
+        print(f"  ⚠ Skipping {filepath.name}: No content extracted (may be image-only or corrupted)")
+        return None
+    
+    # Check if content is mostly garbage (too many control characters)
+    printable_chars = sum(1 for c in content if c.isprintable() or c.isspace())
+    if len(content) > 100 and printable_chars / len(content) < 0.5:
+        print(f"  ⚠ Skipping {filepath.name}: Content appears corrupted (too many non-printable characters)")
         return None
     
     title = extract_title(content, filepath.name)
@@ -110,7 +142,7 @@ def upload_document(api_url: str, doc: dict, knowledge_base: str) -> bool:
             f"{api_url}/api/documents",
             json=payload,
             headers={"Content-Type": "application/json"},
-            timeout=120,  # Long timeout for embedding generation
+            timeout=300,  # Long timeout for large PDFs and embedding generation
         )
         
         if response.status_code == 200:
@@ -181,21 +213,33 @@ def main():
     
     # Find all documents
     documents = []
-    for filepath in sorted(folder.iterdir()):
+    all_files = sorted(folder.iterdir())
+    total_files = len([f for f in all_files if f.is_file() and f.suffix.lower() in [".pdf", ".md", ".txt"]])
+    
+    print(f"Found {total_files} files to process...")
+    
+    for idx, filepath in enumerate(all_files, 1):
         if filepath.is_dir():
             continue
         if filepath.suffix.lower() not in [".pdf", ".md", ".txt"]:
             continue
         
-        print(f"Reading: {filepath.name}")
+        if total_files > 100:
+            # Less verbose for large batches
+            if idx % 100 == 0 or idx == total_files:
+                print(f"  Processing {idx}/{total_files}...")
+        else:
+            print(f"Reading: {filepath.name}")
+        
         doc = read_document(filepath)
         if doc:
             documents.append(doc)
-            print(f"  Title: {doc['title']}")
-            print(f"  Content length: {len(doc['content'])} chars")
+            if total_files <= 100:
+                print(f"  Title: {doc['title']}")
+                print(f"  Content length: {len(doc['content'])} chars")
     
     print("-" * 50)
-    print(f"Found {len(documents)} documents")
+    print(f"Successfully read {len(documents)}/{total_files} documents")
     
     if not documents:
         print("No documents to process.")
@@ -227,17 +271,37 @@ def main():
     
     print("\nUploading documents...")
     success_count = 0
+    error_count = 0
     
-    for doc in documents:
-        print(f"  Uploading: {doc['title']}...", end=" ", flush=True)
-        if upload_document(args.url, doc, args.kb):
-            print("✓")
-            success_count += 1
+    for idx, doc in enumerate(documents, 1):
+        if len(documents) > 50:
+            # Show progress for large batches
+            print(f"  [{idx}/{len(documents)}] Uploading: {doc['title'][:50]}...", end=" ", flush=True)
         else:
-            print("✗")
+            print(f"  Uploading: {doc['title']}...", end=" ", flush=True)
+        
+        try:
+            if upload_document(args.url, doc, args.kb):
+                print("✓")
+                success_count += 1
+            else:
+                print("✗")
+                error_count += 1
+        except KeyboardInterrupt:
+            print("\n\nUpload interrupted by user.")
+            break
+        except Exception as e:
+            print(f"✗ (Error: {str(e)[:50]})")
+            error_count += 1
+        
+        # Show progress every 50 files
+        if idx % 50 == 0:
+            print(f"\n  Progress: {success_count} uploaded, {error_count} failed\n")
     
     print("-" * 50)
-    print(f"Uploaded {success_count}/{len(documents)} documents")
+    print(f"✓ Uploaded: {success_count}")
+    print(f"✗ Failed: {error_count}")
+    print(f"Total: {len(documents)} documents")
 
 
 if __name__ == "__main__":
