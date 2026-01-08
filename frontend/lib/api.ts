@@ -12,6 +12,12 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// Log the API URL on load (helps debug Vercel vs localhost issues)
+if (typeof window !== 'undefined') {
+    console.log(`[API] Backend URL: ${API_BASE}`);
+    console.log(`[API] Environment: ${process.env.NEXT_PUBLIC_API_URL ? 'Vercel/Production' : 'Localhost/Development'}`);
+}
+
 export type { 
     ApiWorkflow as Workflow, 
     ApiWorkflowNode as WorkflowNode, 
@@ -129,8 +135,44 @@ export async function executeWorkflow(
     }
 }
 
+// ============ LOCAL STORAGE HELPERS ============
+const LOCAL_STORAGE_KEY = "workflow_builder_workflows";
+
+function getLocalWorkflows(): Record<string, ApiWorkflow> {
+    if (typeof window === 'undefined') return {};
+    try {
+        const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+        return stored ? JSON.parse(stored) : {};
+    } catch {
+        return {};
+    }
+}
+
+function saveLocalWorkflow(workflow: ApiWorkflow): void {
+    if (typeof window === 'undefined') return;
+    try {
+        const workflows = getLocalWorkflows();
+        workflows[workflow.id] = workflow;
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(workflows));
+        console.log(`[API] Saved workflow locally: ${workflow.name}`);
+    } catch (e) {
+        console.error("[API] Failed to save to localStorage:", e);
+    }
+}
+
+function deleteLocalWorkflow(workflowId: string): void {
+    if (typeof window === 'undefined') return;
+    try {
+        const workflows = getLocalWorkflows();
+        delete workflows[workflowId];
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(workflows));
+    } catch (e) {
+        console.error("[API] Failed to delete from localStorage:", e);
+    }
+}
+
 /**
- * Save a workflow to the backend.
+ * Save a workflow to both localStorage and backend.
  */
 export async function saveWorkflow(
     name: string,
@@ -138,61 +180,137 @@ export async function saveWorkflow(
     edges: ApiWorkflowEdge[],
     workflowId?: string
 ): Promise<ApiWorkflow> {
-    const response = await fetch(`${API_BASE}/api/workflows`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            workflow_id: workflowId,
-            name,
-            nodes,
-            edges,
-        }),
-    });
+    // Generate ID if not provided
+    const id = workflowId || crypto.randomUUID().slice(0, 8);
+    const now = new Date().toISOString();
+    
+    // Create workflow object
+    const workflow: ApiWorkflow = {
+        id,
+        name,
+        nodes,
+        edges,
+        created_at: now,
+        updated_at: now,
+    };
+    
+    // Always save to localStorage first (works offline)
+    saveLocalWorkflow(workflow);
+    
+    // Try to save to backend too
+    try {
+        const response = await fetch(`${API_BASE}/api/workflows`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                workflow_id: id,
+                name,
+                nodes,
+                edges,
+            }),
+        });
 
-    if (!response.ok) {
-        throw new Error(`Save failed: ${response.statusText}`);
+        if (response.ok) {
+            const backendWorkflow = await response.json();
+            // Update local with backend response (has proper timestamps)
+            saveLocalWorkflow(backendWorkflow);
+            return backendWorkflow;
+        }
+    } catch (e) {
+        console.warn("[API] Backend save failed, using local storage only:", e);
     }
-
-    return response.json();
+    
+    return workflow;
 }
 
 /**
- * Load a workflow from the backend.
+ * Load a workflow from localStorage or backend.
  */
 export async function loadWorkflow(workflowId: string): Promise<ApiWorkflow> {
-    const response = await fetch(`${API_BASE}/api/workflows/${workflowId}`);
-
-    if (!response.ok) {
-        throw new Error(`Load failed: ${response.statusText}`);
+    // Check localStorage first
+    const localWorkflows = getLocalWorkflows();
+    const localWorkflow = localWorkflows[workflowId];
+    
+    // Try backend
+    try {
+        const response = await fetch(`${API_BASE}/api/workflows/${workflowId}`);
+        if (response.ok) {
+            const backendWorkflow = await response.json();
+            // Update local cache
+            saveLocalWorkflow(backendWorkflow);
+            return backendWorkflow;
+        }
+    } catch (e) {
+        console.warn("[API] Backend load failed, using local storage:", e);
+    }
+    
+    // Fall back to local
+    if (localWorkflow) {
+        return localWorkflow;
     }
 
-    return response.json();
+    throw new Error(`Workflow not found: ${workflowId}`);
 }
 
 /**
- * List all workflows.
+ * List all workflows (merges localStorage + backend).
  */
 export async function listWorkflows(): Promise<WorkflowListItem[]> {
-    const response = await fetch(`${API_BASE}/api/workflows`);
-
-    if (!response.ok) {
-        throw new Error(`List failed: ${response.statusText}`);
+    console.log(`[API] Listing workflows...`);
+    
+    // Get local workflows
+    const localWorkflows = getLocalWorkflows();
+    const localList: WorkflowListItem[] = Object.values(localWorkflows).map(w => ({
+        id: w.id,
+        name: w.name,
+        node_count: w.nodes?.length || 0,
+        edge_count: w.edges?.length || 0,
+        updated_at: w.updated_at || w.created_at || new Date().toISOString(),
+    }));
+    
+    // Try to get backend workflows
+    let backendList: WorkflowListItem[] = [];
+    try {
+        const response = await fetch(`${API_BASE}/api/workflows`);
+        if (response.ok) {
+            const data = await response.json();
+            backendList = data.workflows || [];
+            console.log(`[API] Found ${backendList.length} workflows from backend`);
+        }
+    } catch (error) {
+        console.warn(`[API] Backend unavailable, using local storage only`);
     }
-
-    const data = await response.json();
-    return data.workflows;
+    
+    // Merge: backend takes priority, add local-only workflows
+    const backendIds = new Set(backendList.map(w => w.id));
+    const localOnly = localList.filter(w => !backendIds.has(w.id));
+    const merged = [...backendList, ...localOnly];
+    
+    // Sort by updated_at descending
+    merged.sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
+    
+    console.log(`[API] Total workflows: ${merged.length} (${backendList.length} backend, ${localOnly.length} local-only)`);
+    return merged;
 }
 
 /**
- * Delete a workflow.
+ * Delete a workflow from both localStorage and backend.
  */
 export async function deleteWorkflow(workflowId: string): Promise<void> {
-    const response = await fetch(`${API_BASE}/api/workflows/${workflowId}`, {
-        method: "DELETE",
-    });
+    // Always delete from localStorage
+    deleteLocalWorkflow(workflowId);
+    
+    // Try to delete from backend too
+    try {
+        const response = await fetch(`${API_BASE}/api/workflows/${workflowId}`, {
+            method: "DELETE",
+        });
 
-    if (!response.ok) {
-        throw new Error(`Delete failed: ${response.statusText}`);
+        if (!response.ok && response.status !== 404) {
+            console.warn(`[API] Backend delete failed: ${response.statusText}`);
+        }
+    } catch (e) {
+        console.warn("[API] Backend delete failed:", e);
     }
 }
 

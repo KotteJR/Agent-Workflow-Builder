@@ -28,6 +28,12 @@ class TransformerAgent(BaseAgent):
     
     SYSTEM_PROMPT_COMPREHENSIVE = """You are an expert Data Analyst and Transformer Agent. Your task is to deeply analyze ANY type of document and extract ALL meaningful structured data into {to_format} format.
 
+IMPORTANT: The document content you receive may come from:
+- Text-based PDFs (direct text extraction)
+- Scanned PDFs (OCR-extracted text - may have minor OCR errors, but content is readable)
+- Word documents, text files, or other formats
+- All content is provided as text - analyze it as you would any text document
+
 STEP 1 - DOCUMENT TYPE DETECTION:
 First, identify what type of document this is:
 - Invoice/Receipt: Extract line items, amounts, dates, vendor info, totals

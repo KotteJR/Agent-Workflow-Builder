@@ -19,6 +19,7 @@ import {
     HiClipboardDocumentCheck,
     HiChartBar,
     HiArrowRightCircle,
+    HiLanguage,
 } from "react-icons/hi2";
 
 export type NodeSettings = {
@@ -83,6 +84,10 @@ export type NodeSettings = {
     
     // Transformer settings (additional)
     useAdvancedModel?: boolean; // Use large model for better understanding
+    
+    // Translator settings
+    sourceLanguage?: string;
+    targetLanguage?: string;
 };
 
 
@@ -189,6 +194,19 @@ export const NODE_TYPES: NodeType[] = [
             stylePreset: "professional",
             customInstructions: "",
             imageDetailLevel: 50
+        }
+    },
+    {
+        id: "translator",
+        label: "Translator",
+        icon: HiLanguage,
+        color: "bg-sky-100 text-sky-600 border-sky-200",
+        category: "tool",
+        description: "Translates text between any languages. Supports 50+ languages including Arabic, Chinese, Japanese, Korean, and more. Preserves formatting and handles technical terminology.",
+        hasSettings: true,
+        defaultSettings: {
+            sourceLanguage: "auto",
+            targetLanguage: "en"
         }
     },
     {

@@ -13,6 +13,7 @@ from agents.summarization import SummarizationAgent
 from agents.formatting import FormattingAgent
 from agents.transformer import TransformerAgent
 from agents.image_generator import ImageGeneratorAgent
+from agents.translator import TranslatorAgent
 
 __all__ = [
     "BaseAgent",
@@ -26,6 +27,7 @@ __all__ = [
     "FormattingAgent",
     "TransformerAgent",
     "ImageGeneratorAgent",
+    "TranslatorAgent",
 ]
 
 

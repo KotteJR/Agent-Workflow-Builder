@@ -24,6 +24,7 @@ from agents.summarization import SummarizationAgent
 from agents.formatting import FormattingAgent
 from agents.transformer import TransformerAgent
 from agents.image_generator import ImageGeneratorAgent
+from agents.translator import TranslatorAgent
 import retrieval
 from demo_handler import is_demo_workflow
 from workflow_logger import debugger, workflow_logger
@@ -40,6 +41,7 @@ AGENT_REGISTRY = {
     "formatting": FormattingAgent,
     "transformer": TransformerAgent,
     "image_generator": ImageGeneratorAgent,
+    "translator": TranslatorAgent,
 }
 
 # Input node types (don't require agents)
@@ -292,6 +294,9 @@ async def execute_workflow(
                 if node_type == "upload":
                     # Get uploaded files from node data
                     uploaded_files = node_data.get("uploadedFiles", [])
+                    print(f"[UPLOAD] ========================================")
+                    print(f"[UPLOAD] Processing upload node: {node_id}")
+                    print(f"[UPLOAD] Node data keys: {list(node_data.keys())}")
                     print(f"[UPLOAD] Found {len(uploaded_files)} uploaded files")
                     if uploaded_files:
                         # Extract file content for context
@@ -315,7 +320,7 @@ async def execute_workflow(
                                         pdf_bytes = base64.b64decode(pdf_base64)
                                         pdf_reader = PdfReader(BytesIO(pdf_bytes))
                                         
-                                        # Extract text from all pages
+                                        # Step 1: Try to extract text directly (works for text-based PDFs)
                                         text_parts = []
                                         for i, page in enumerate(pdf_reader.pages):
                                             page_text = page.extract_text()
@@ -323,8 +328,77 @@ async def execute_workflow(
                                                 text_parts.append(f"[Page {i+1}]\n{page_text}")
                                         
                                         extracted_text = "\n\n".join(text_parts)
-                                        file_contents.append(f"[PDF File: {file_name}]\n{extracted_text[:100000]}")
-                                        print(f"[UPLOAD] Extracted {len(extracted_text)} chars from PDF: {file_name}")
+                                        
+                                        # Step 2: If very little text extracted, it's likely a scanned PDF - use OCR
+                                        if len(extracted_text.strip()) < 100:  # Threshold for scanned PDF detection
+                                            print(f"[UPLOAD] PDF appears to be scanned (only {len(extracted_text)} chars extracted), attempting OCR...")
+                                            ocr_success = False
+                                            try:
+                                                from pdf2image import convert_from_bytes
+                                                import pytesseract
+                                                
+                                                print(f"[UPLOAD] OCR libraries found. Converting PDF to images...")
+                                                # Convert PDF pages to images
+                                                images = convert_from_bytes(pdf_bytes, dpi=300)  # Higher DPI for better OCR
+                                                print(f"[UPLOAD] Converted to {len(images)} page images. Running OCR...")
+                                                
+                                                # Extract text from each page using OCR
+                                                # Use multiple languages: English + Arabic for best coverage
+                                                ocr_langs = 'eng+ara'  # Supports mixed English/Arabic documents
+                                                ocr_text_parts = []
+                                                for i, image in enumerate(images):
+                                                    print(f"[UPLOAD] Running OCR on page {i+1}/{len(images)} (langs: {ocr_langs})...")
+                                                    page_ocr_text = pytesseract.image_to_string(image, lang=ocr_langs)
+                                                    if page_ocr_text.strip():
+                                                        ocr_text_parts.append(f"[Page {i+1} - OCR]\n{page_ocr_text}")
+                                                        print(f"[UPLOAD] Page {i+1}: Extracted {len(page_ocr_text)} chars via OCR")
+                                                
+                                                ocr_text = "\n\n".join(ocr_text_parts)
+                                                
+                                                if ocr_text.strip():
+                                                    extracted_text = ocr_text
+                                                    ocr_success = True
+                                                    print(f"[UPLOAD] ✅ OCR SUCCESS: Extracted {len(extracted_text)} chars from scanned PDF")
+                                                else:
+                                                    print(f"[UPLOAD] ⚠️ OCR completed but extracted no text")
+                                                    
+                                            except ImportError as import_err:
+                                                print(f"[UPLOAD] ❌ OCR libraries not installed!")
+                                                print(f"[UPLOAD] Missing: {import_err}")
+                                                print(f"[UPLOAD] Install with: pip install pdf2image pytesseract Pillow")
+                                                print(f"[UPLOAD] Also install Tesseract OCR engine:")
+                                                print(f"[UPLOAD]   macOS: brew install tesseract")
+                                                print(f"[UPLOAD]   Linux: sudo apt-get install tesseract-ocr")
+                                                print(f"[UPLOAD]   Windows: https://github.com/UB-Mannheim/tesseract/wiki")
+                                                # Don't fail completely - will add error message below
+                                            except Exception as ocr_error:
+                                                print(f"[UPLOAD] ❌ OCR failed with error: {ocr_error}")
+                                                print(f"[UPLOAD] Error type: {type(ocr_error).__name__}")
+                                                import traceback
+                                                print(f"[UPLOAD] Traceback: {traceback.format_exc()}")
+                                            
+                                            # If OCR failed and we have no text, log error but don't add error message as content
+                                            if not ocr_success and len(extracted_text.strip()) < 100:
+                                                print(f"[UPLOAD] ❌ CRITICAL: OCR failed and no text extracted. PDF cannot be processed.")
+                                                print(f"[UPLOAD] This is a scanned PDF that requires OCR, but OCR is not working.")
+                                                # Don't add error message as content - it confuses the transformer
+                                                # Instead, skip this file or add a minimal placeholder
+                                                extracted_text = f"[SCANNED PDF - OCR FAILED]\n\nUnable to extract text from this scanned PDF. OCR processing failed.\n\nFilename: {file_name}\nPages: {len(pdf_reader.pages)}\n\nPlease check OCR installation and try again."
+                                        
+                                        # Add to file_contents - either the extracted text or an error
+                                        if extracted_text and len(extracted_text.strip()) > 50 and not extracted_text.startswith("[SCANNED PDF"):
+                                            # Success: we have meaningful extracted text
+                                            final_text = extracted_text[:100000]
+                                            if len(extracted_text) > 100000:
+                                                final_text += f"\n\n[Document truncated - {len(extracted_text)} total chars]"
+                                            
+                                            file_contents.append(f"[PDF File: {file_name}]\n{final_text}")
+                                            print(f"[UPLOAD] ✅ Final extracted {len(final_text)} chars from PDF: {file_name}")
+                                        else:
+                                            # OCR failed - add error so transformer knows a file was uploaded but failed
+                                            print(f"[UPLOAD] ❌ OCR failed for PDF {file_name}")
+                                            file_contents.append(f"[PDF File: {file_name}]\n[ERROR: This is a scanned/image-based PDF. OCR text extraction failed. Please install OCR dependencies: pip install pdf2image pytesseract && brew install tesseract poppler]")
+                                        
                                     except Exception as e:
                                         print(f"[UPLOAD] Failed to parse PDF {file_name}: {e}")
                                         file_contents.append(f"[PDF File: {file_name}]\n[Error parsing PDF: {str(e)}]")
@@ -367,6 +441,14 @@ async def execute_workflow(
                             context["user_message"] = f"{user_message}\n\nUploaded files:\n{context['uploaded_file_content']}"
                             print(f"[UPLOAD] Set uploaded_file_content with {len(context['uploaded_file_content'])} chars")
                             print(f"[UPLOAD] Content preview: {context['uploaded_file_content'][:500]}...")
+                        else:
+                            # No content extracted from any files - set error message
+                            print(f"[UPLOAD] ⚠️ WARNING: {len(uploaded_files)} files uploaded but no content extracted!")
+                            file_names = [f.get("name", "unknown") for f in uploaded_files]
+                            context["uploaded_file_content"] = f"[UPLOAD ERROR: Files uploaded ({', '.join(file_names)}) but content extraction failed. If these are scanned PDFs, OCR may not be installed or working. Install: pip install pdf2image pytesseract && brew install tesseract poppler]"
+                            context["user_message"] = f"{user_message}\n\n{context['uploaded_file_content']}"
+                    else:
+                        print(f"[UPLOAD] No files in uploadedFiles array")
                     
                     yield _sse_event("agent_complete", {
                         "agent": node_id,

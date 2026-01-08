@@ -378,6 +378,114 @@ export const NodeSettingsPanel = memo(function NodeSettingsPanel({
                         </div>
                     )}
 
+                    {/* Translator Settings */}
+                    {nodeType === "translator" && (
+                        <div className="space-y-4">
+                            <SelectSetting
+                                label="Source Language"
+                                value={settings.sourceLanguage ?? "auto"}
+                                onChange={(v) =>
+                                    setSettings({
+                                        ...settings,
+                                        sourceLanguage: v,
+                                    })
+                                }
+                                options={[
+                                    { value: "auto", label: "🔍 Auto-detect" },
+                                    { value: "en", label: "🇬🇧 English" },
+                                    { value: "ar", label: "🇸🇦 Arabic" },
+                                    { value: "zh", label: "🇨🇳 Chinese (Simplified)" },
+                                    { value: "zh-TW", label: "🇹🇼 Chinese (Traditional)" },
+                                    { value: "fr", label: "🇫🇷 French" },
+                                    { value: "de", label: "🇩🇪 German" },
+                                    { value: "es", label: "🇪🇸 Spanish" },
+                                    { value: "pt", label: "🇵🇹 Portuguese" },
+                                    { value: "ru", label: "🇷🇺 Russian" },
+                                    { value: "ja", label: "🇯🇵 Japanese" },
+                                    { value: "ko", label: "🇰🇷 Korean" },
+                                    { value: "it", label: "🇮🇹 Italian" },
+                                    { value: "nl", label: "🇳🇱 Dutch" },
+                                    { value: "pl", label: "🇵🇱 Polish" },
+                                    { value: "tr", label: "🇹🇷 Turkish" },
+                                    { value: "vi", label: "🇻🇳 Vietnamese" },
+                                    { value: "th", label: "🇹🇭 Thai" },
+                                    { value: "id", label: "🇮🇩 Indonesian" },
+                                    { value: "hi", label: "🇮🇳 Hindi" },
+                                    { value: "bn", label: "🇧🇩 Bengali" },
+                                    { value: "ur", label: "🇵🇰 Urdu" },
+                                    { value: "fa", label: "🇮🇷 Persian (Farsi)" },
+                                    { value: "he", label: "🇮🇱 Hebrew" },
+                                    { value: "sv", label: "🇸🇪 Swedish" },
+                                    { value: "da", label: "🇩🇰 Danish" },
+                                    { value: "no", label: "🇳🇴 Norwegian" },
+                                    { value: "fi", label: "🇫🇮 Finnish" },
+                                    { value: "el", label: "🇬🇷 Greek" },
+                                    { value: "cs", label: "🇨🇿 Czech" },
+                                    { value: "ro", label: "🇷🇴 Romanian" },
+                                    { value: "hu", label: "🇭🇺 Hungarian" },
+                                    { value: "uk", label: "🇺🇦 Ukrainian" },
+                                    { value: "ms", label: "🇲🇾 Malay" },
+                                    { value: "tl", label: "🇵🇭 Filipino" },
+                                    { value: "sw", label: "🇰🇪 Swahili" },
+                                    { value: "sr", label: "🇷🇸 Serbian" },
+                                    { value: "mk", label: "🇲🇰 Macedonian" },
+                                ]}
+                                helpText="Language of the input text (auto-detect recommended)"
+                            />
+                            
+                            <SelectSetting
+                                label="Target Language"
+                                value={settings.targetLanguage ?? "en"}
+                                onChange={(v) =>
+                                    setSettings({
+                                        ...settings,
+                                        targetLanguage: v,
+                                    })
+                                }
+                                options={[
+                                    { value: "en", label: "🇬🇧 English" },
+                                    { value: "ar", label: "🇸🇦 Arabic" },
+                                    { value: "zh", label: "🇨🇳 Chinese (Simplified)" },
+                                    { value: "zh-TW", label: "🇹🇼 Chinese (Traditional)" },
+                                    { value: "fr", label: "🇫🇷 French" },
+                                    { value: "de", label: "🇩🇪 German" },
+                                    { value: "es", label: "🇪🇸 Spanish" },
+                                    { value: "pt", label: "🇵🇹 Portuguese" },
+                                    { value: "ru", label: "🇷🇺 Russian" },
+                                    { value: "ja", label: "🇯🇵 Japanese" },
+                                    { value: "ko", label: "🇰🇷 Korean" },
+                                    { value: "it", label: "🇮🇹 Italian" },
+                                    { value: "nl", label: "🇳🇱 Dutch" },
+                                    { value: "pl", label: "🇵🇱 Polish" },
+                                    { value: "tr", label: "🇹🇷 Turkish" },
+                                    { value: "vi", label: "🇻🇳 Vietnamese" },
+                                    { value: "th", label: "🇹🇭 Thai" },
+                                    { value: "id", label: "🇮🇩 Indonesian" },
+                                    { value: "hi", label: "🇮🇳 Hindi" },
+                                    { value: "bn", label: "🇧🇩 Bengali" },
+                                    { value: "ur", label: "🇵🇰 Urdu" },
+                                    { value: "fa", label: "🇮🇷 Persian (Farsi)" },
+                                    { value: "he", label: "🇮🇱 Hebrew" },
+                                    { value: "sv", label: "🇸🇪 Swedish" },
+                                    { value: "da", label: "🇩🇰 Danish" },
+                                    { value: "no", label: "🇳🇴 Norwegian" },
+                                    { value: "fi", label: "🇫🇮 Finnish" },
+                                    { value: "el", label: "🇬🇷 Greek" },
+                                    { value: "cs", label: "🇨🇿 Czech" },
+                                    { value: "ro", label: "🇷🇴 Romanian" },
+                                    { value: "hu", label: "🇭🇺 Hungarian" },
+                                    { value: "uk", label: "🇺🇦 Ukrainian" },
+                                    { value: "ms", label: "🇲🇾 Malay" },
+                                    { value: "tl", label: "🇵🇭 Filipino" },
+                                    { value: "sw", label: "🇰🇪 Swahili" },
+                                    { value: "sr", label: "🇷🇸 Serbian" },
+                                    { value: "mk", label: "🇲🇰 Macedonian" },
+                                ]}
+                                helpText="Language to translate into"
+                            />
+                        </div>
+                    )}
+
                     {/* Sampler Settings */}
                     {nodeType === "sampler" && (
                         <NumberSetting
