@@ -937,9 +937,9 @@ async def _execute_agent(
                 
                 # Check if this is a tool node that should be available
                 if other_node_type == "image_generator" and "image_generator" not in available_tools:
-                available_tools.append("image_generator")
+                    available_tools.append("image_generator")
                 elif other_node_type == "web_search" and "web_search" not in available_tools:
-                available_tools.append("web_search")
+                    available_tools.append("web_search")
         
         workflow_logger.debug(f"Orchestrator available tools detection:")
         workflow_logger.debug(f"  Reachable nodes: {reachable_nodes}")
