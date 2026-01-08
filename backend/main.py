@@ -68,18 +68,31 @@ app.add_middleware(
 # =============================================================================
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     """Initialize services on startup."""
     print(f"[STARTUP] LLM Provider: {config.LLM_PROVIDER}")
     print(f"[STARTUP] Models: {config.get_model_config()}")
     
-    # Initialize vector stores for both knowledge bases
+    # Initialize vector stores / database
     try:
-        retrieval.initialize_vector_store()
-        counts = retrieval.get_all_document_counts()
-        print(f"[STARTUP] Vector stores initialized: Legal={counts.get('legal', 0)}, Audit={counts.get('audit', 0)} documents")
+        if DATABASE_URL:
+            # Initialize PostgreSQL with pgvector
+            import retrieval_pgvector
+            success = await retrieval_pgvector.initialize_database()
+            if success:
+                counts = await retrieval_pgvector.get_all_document_counts_pg()
+                print(f"[STARTUP] pgvector database initialized: Legal={counts.get('legal', 0)}, Audit={counts.get('audit', 0)} documents")
+            else:
+                print("[STARTUP] Warning: pgvector initialization failed")
+        else:
+            # Use file-based storage
+            retrieval.initialize_vector_store()
+            counts = retrieval.get_all_document_counts()
+            print(f"[STARTUP] File-based vector store: Legal={counts.get('legal', 0)}, Audit={counts.get('audit', 0)} documents")
     except Exception as e:
         print(f"[STARTUP] Warning: Could not initialize vector store: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 # =============================================================================
