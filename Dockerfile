@@ -1,25 +1,24 @@
-FROM python:3.13-slim
+FROM python:3.13-bookworm
 
-# Cache bust: v2 - Force rebuild to install Tesseract OCR
-ARG CACHEBUST=2
-
-# Install system dependencies for OCR
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install system dependencies for OCR - MUST RUN FIRST
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-eng \
     tesseract-ocr-ara \
     poppler-utils \
-    libpoppler-cpp-dev \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set Tesseract environment variable (Debian uses /usr/share/tesseract-ocr/4.00/tessdata)
-ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/4.00/tessdata
+# Verify Tesseract is installed - FAIL BUILD IF NOT
+RUN which tesseract && tesseract --version
+RUN which pdftoppm && pdftoppm -v
 
-# Verify OCR installation - build will fail if these aren't installed
-RUN tesseract --version && echo "✅ Tesseract installed successfully"
-RUN which pdftoppm && echo "✅ Poppler installed successfully"
-RUN ls -la /usr/share/tesseract-ocr/ && echo "✅ Tessdata directory found"
+# Find tessdata location dynamically
+RUN find /usr -name "tessdata" -type d 2>/dev/null || echo "tessdata not found"
+
+# Set Tesseract environment variable
+ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
 
 # Set working directory
 WORKDIR /app
