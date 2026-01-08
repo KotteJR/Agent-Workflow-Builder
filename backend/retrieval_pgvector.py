@@ -54,37 +54,67 @@ async def initialize_database():
     
     pool = await get_pool()
     
+    # First, detect embedding dimension by generating a test embedding
+    embedding_client = get_embedding_client()
+    test_embedding = embedding_client.embed_texts(["test"])[0]
+    embedding_dim = len(test_embedding)
+    print(f"[PGVECTOR] Detected embedding dimension: {embedding_dim}")
+    
     async with pool.acquire() as conn:
         # Enable pgvector extension
         await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
         
-        # Create documents table with vector column
-        # OpenAI text-embedding-3-small uses 1536 dimensions
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS documents (
-                id TEXT PRIMARY KEY,
-                knowledge_base TEXT NOT NULL,
-                title TEXT NOT NULL,
-                content TEXT NOT NULL,
-                source TEXT,
-                embedding vector(1536),
-                content_hash TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
+        # Check if table exists and has correct dimension
+        table_exists = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'documents'
+            )
         """)
         
-        # Create index for fast similarity search
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS documents_embedding_idx 
-            ON documents USING ivfflat (embedding vector_cosine_ops)
-            WITH (lists = 100);
-        """)
+        if table_exists:
+            # Check current dimension
+            current_dim = await conn.fetchval("""
+                SELECT atttypmod FROM pg_attribute 
+                WHERE attrelid = 'documents'::regclass 
+                AND attname = 'embedding'
+            """)
+            
+            # atttypmod for vector stores dimension + 4
+            if current_dim and (current_dim - 4) != embedding_dim:
+                print(f"[PGVECTOR] Dimension mismatch (current: {current_dim - 4}, needed: {embedding_dim}). Recreating table...")
+                await conn.execute("DROP TABLE IF EXISTS documents CASCADE;")
+                table_exists = False
         
-        # Create index for knowledge base filtering
-        await conn.execute("""
-            CREATE INDEX IF NOT EXISTS documents_kb_idx ON documents(knowledge_base);
-        """)
+        if not table_exists:
+            # Create documents table with correct vector dimension
+            await conn.execute(f"""
+                CREATE TABLE documents (
+                    id TEXT PRIMARY KEY,
+                    knowledge_base TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    source TEXT,
+                    embedding vector({embedding_dim}),
+                    content_hash TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            
+            # Create index for fast similarity search
+            await conn.execute(f"""
+                CREATE INDEX documents_embedding_idx 
+                ON documents USING ivfflat (embedding vector_cosine_ops)
+                WITH (lists = 100);
+            """)
+            
+            # Create index for knowledge base filtering
+            await conn.execute("""
+                CREATE INDEX documents_kb_idx ON documents(knowledge_base);
+            """)
+            
+            print(f"[PGVECTOR] Created documents table with {embedding_dim}-dimensional vectors")
         
         print("[PGVECTOR] Database initialized successfully")
         return True
