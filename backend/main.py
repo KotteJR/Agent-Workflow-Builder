@@ -9,6 +9,7 @@ FastAPI application providing endpoints for:
 """
 
 import json
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -31,7 +32,16 @@ from workflow_builder_llm import (
     get_example_workflow,
     list_example_workflows,
 )
-import retrieval
+import os
+
+# Use pgvector if DATABASE_URL is set, otherwise fallback to file-based
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+if DATABASE_URL:
+    print("[STARTUP] Using PostgreSQL with pgvector for vector storage")
+    import retrieval_pgvector as retrieval
+else:
+    print("[STARTUP] Using file-based vector storage (no DATABASE_URL)")
+    import retrieval
 
 
 # =============================================================================
@@ -102,6 +112,13 @@ class WorkflowBuildRequest(BaseModel):
 class WorkflowImproveRequest(BaseModel):
     workflow: Dict[str, Any]
     feedback: Optional[str] = None
+
+
+class DocumentUploadRequest(BaseModel):
+    title: str
+    content: str
+    knowledge_base: str = "legal"
+    source: Optional[str] = None
 
 
 # =============================================================================
@@ -247,6 +264,169 @@ async def api_get_example(example_id: str):
     if not example:
         raise HTTPException(status_code=404, detail="Example not found")
     return example
+
+
+# =============================================================================
+# Document Management Endpoints (for pgvector)
+# =============================================================================
+
+@app.post("/api/documents")
+async def api_upload_document(req: DocumentUploadRequest):
+    """
+    Upload a document to the knowledge base.
+    Works with both pgvector (Railway) and file-based storage.
+    """
+    import hashlib
+    
+    if req.knowledge_base not in ["legal", "audit"]:
+        raise HTTPException(status_code=400, detail="Invalid knowledge base. Must be 'legal' or 'audit'")
+    
+    # Generate document ID
+    doc_id = f"doc_{req.knowledge_base}_{hashlib.md5(req.title.encode()).hexdigest()[:8]}"
+    
+    if DATABASE_URL:
+        # Use pgvector
+        import retrieval_pgvector
+        import asyncio
+        
+        try:
+            success = await retrieval_pgvector.upsert_document(
+                doc_id=doc_id,
+                knowledge_base=req.knowledge_base,
+                title=req.title,
+                content=req.content,
+                source=req.source or req.title,
+            )
+            if success:
+                return {"success": True, "document_id": doc_id, "message": "Document uploaded to database"}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to upload document")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    else:
+        # Save to file
+        docs_dir = config.get_documents_dir(req.knowledge_base)
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        
+        filename = req.title.replace(" ", "_").replace("/", "-") + ".md"
+        filepath = docs_dir / filename
+        filepath.write_text(f"# {req.title}\n\n{req.content}", encoding="utf-8")
+        
+        # Re-initialize vector store for this knowledge base
+        retrieval.initialize_vector_store(force=True, knowledge_base=req.knowledge_base)
+        
+        return {"success": True, "document_id": doc_id, "message": "Document saved to file"}
+
+
+@app.get("/api/documents")
+async def api_list_documents(knowledge_base: str = "legal"):
+    """List all documents in a knowledge base."""
+    if knowledge_base not in ["legal", "audit"]:
+        raise HTTPException(status_code=400, detail="Invalid knowledge base")
+    
+    if DATABASE_URL:
+        import retrieval_pgvector
+        pool = await retrieval_pgvector.get_pool()
+        
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT id, title, source, 
+                       LENGTH(content) as content_length,
+                       created_at, updated_at
+                FROM documents 
+                WHERE knowledge_base = $1
+                ORDER BY created_at DESC
+            """, knowledge_base)
+            
+            return {
+                "knowledge_base": knowledge_base,
+                "documents": [
+                    {
+                        "id": row["id"],
+                        "title": row["title"],
+                        "source": row["source"],
+                        "content_length": row["content_length"],
+                        "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                        "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                    }
+                    for row in rows
+                ]
+            }
+    else:
+        # List from files
+        docs_dir = config.get_documents_dir(knowledge_base)
+        documents = []
+        if docs_dir.exists():
+            for f in sorted(docs_dir.iterdir()):
+                if f.suffix in [".md", ".txt", ".pdf"]:
+                    documents.append({
+                        "id": f"doc_{knowledge_base}_{f.stem}",
+                        "title": f.stem.replace("_", " ").title(),
+                        "source": f.name,
+                        "content_length": f.stat().st_size,
+                    })
+        return {"knowledge_base": knowledge_base, "documents": documents}
+
+
+@app.delete("/api/documents/{doc_id}")
+async def api_delete_document(doc_id: str):
+    """Delete a document from the knowledge base."""
+    if DATABASE_URL:
+        import retrieval_pgvector
+        pool = await retrieval_pgvector.get_pool()
+        
+        async with pool.acquire() as conn:
+            result = await conn.execute("DELETE FROM documents WHERE id = $1", doc_id)
+            if result == "DELETE 0":
+                raise HTTPException(status_code=404, detail="Document not found")
+            return {"success": True, "message": f"Document {doc_id} deleted"}
+    else:
+        raise HTTPException(status_code=501, detail="Delete not supported for file-based storage")
+
+
+@app.get("/api/database-status")
+async def api_database_status():
+    """Check database connection and pgvector status."""
+    if not DATABASE_URL:
+        return {
+            "mode": "file-based",
+            "database_url": None,
+            "pgvector_enabled": False,
+            "message": "Using file-based storage. Set DATABASE_URL to enable PostgreSQL."
+        }
+    
+    try:
+        import retrieval_pgvector
+        pool = await retrieval_pgvector.get_pool()
+        
+        async with pool.acquire() as conn:
+            # Check pgvector extension
+            ext_result = await conn.fetchrow(
+                "SELECT * FROM pg_extension WHERE extname = 'vector'"
+            )
+            
+            # Get document counts
+            counts = await conn.fetch("""
+                SELECT knowledge_base, COUNT(*) as count 
+                FROM documents 
+                GROUP BY knowledge_base
+            """)
+            
+            return {
+                "mode": "pgvector",
+                "database_url": DATABASE_URL[:50] + "..." if len(DATABASE_URL) > 50 else DATABASE_URL,
+                "pgvector_enabled": ext_result is not None,
+                "documents": {row["knowledge_base"]: row["count"] for row in counts},
+                "status": "connected"
+            }
+    except Exception as e:
+        return {
+            "mode": "pgvector",
+            "database_url": DATABASE_URL[:50] + "..." if len(DATABASE_URL) > 50 else DATABASE_URL,
+            "pgvector_enabled": False,
+            "status": "error",
+            "error": str(e)
+        }
 
 
 # =============================================================================
