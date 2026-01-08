@@ -410,6 +410,8 @@ async def api_database_status():
     
     try:
         import retrieval_pgvector
+        from models import get_embedding_client
+        
         pool = await retrieval_pgvector.get_pool()
         
         async with pool.acquire() as conn:
@@ -418,19 +420,61 @@ async def api_database_status():
                 "SELECT * FROM pg_extension WHERE extname = 'vector'"
             )
             
-            # Get document counts
-            counts = await conn.fetch("""
-                SELECT knowledge_base, COUNT(*) as count 
-                FROM documents 
-                GROUP BY knowledge_base
+            # Check table exists
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'documents'
+                )
             """)
+            
+            # Get current embedding dimension from table
+            current_dim = None
+            if table_exists:
+                try:
+                    dim_result = await conn.fetchval("""
+                        SELECT atttypmod FROM pg_attribute 
+                        WHERE attrelid = 'documents'::regclass 
+                        AND attname = 'embedding'
+                    """)
+                    if dim_result:
+                        current_dim = dim_result - 4  # atttypmod stores dim + 4
+                except:
+                    pass
+            
+            # Get expected dimension
+            embedding_client = get_embedding_client()
+            test_embedding = embedding_client.embed_texts(["test"])[0]
+            expected_dim = len(test_embedding)
+            
+            # Get document counts
+            documents = {}
+            if table_exists:
+                try:
+                    counts = await conn.fetch("""
+                        SELECT knowledge_base, COUNT(*) as count 
+                        FROM documents 
+                        GROUP BY knowledge_base
+                    """)
+                    documents = {row["knowledge_base"]: row["count"] for row in counts}
+                except Exception as e:
+                    documents = {"error": str(e)}
+            
+            # Check if dimensions match
+            dimension_match = current_dim == expected_dim if current_dim else None
             
             return {
                 "mode": "pgvector",
                 "database_url": DATABASE_URL[:50] + "..." if len(DATABASE_URL) > 50 else DATABASE_URL,
                 "pgvector_enabled": ext_result is not None,
-                "documents": {row["knowledge_base"]: row["count"] for row in counts},
-                "status": "connected"
+                "table_exists": table_exists,
+                "embedding_dimension": {
+                    "current": current_dim,
+                    "expected": expected_dim,
+                    "match": dimension_match
+                },
+                "documents": documents,
+                "status": "connected" if dimension_match else "dimension_mismatch" if current_dim else "connected"
             }
     except Exception as e:
         return {
@@ -440,6 +484,37 @@ async def api_database_status():
             "status": "error",
             "error": str(e)
         }
+
+
+@app.post("/api/database/migrate")
+async def api_migrate_database():
+    """Recreate database table with correct embedding dimension. WARNING: This will delete all documents!"""
+    if not DATABASE_URL:
+        raise HTTPException(status_code=400, detail="DATABASE_URL not set")
+    
+    try:
+        import retrieval_pgvector
+        pool = await retrieval_pgvector.get_pool()
+        
+        async with pool.acquire() as conn:
+            # Get document count before migration
+            count_before = await conn.fetchval("SELECT COUNT(*) FROM documents") if await conn.fetchval("""
+                SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'documents')
+            """) else 0
+            
+            # Drop and recreate
+            await conn.execute("DROP TABLE IF EXISTS documents CASCADE;")
+            
+            # Reinitialize
+            success = await retrieval_pgvector.initialize_database()
+            
+            return {
+                "success": success,
+                "message": f"Table recreated. {count_before} documents were deleted. Please re-upload documents.",
+                "documents_deleted": count_before
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # =============================================================================
