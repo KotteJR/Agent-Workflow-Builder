@@ -104,11 +104,22 @@ Be concise and focused on guiding the workflow execution."""
         if auto_rag:
             try:
                 logger.info("[SUPERVISOR AUTO-RAG] Searching knowledge base...")
-                search_results = retrieval_module.semantic_search(
-                    query=user_message,
-                    top_k=5,
-                    rerank=True,
-                )
+                # Use async version if pgvector, sync version if file-based
+                if DATABASE_URL:
+                    # pgvector: use async version directly
+                    search_results = await retrieval_module.semantic_search_pg(
+                        query=user_message,
+                        top_k=5,
+                        knowledge_base=None,  # Use active knowledge base
+                        rerank=True,
+                    )
+                else:
+                    # File-based: use sync version
+                    search_results = retrieval_module.semantic_search(
+                        query=user_message,
+                        top_k=5,
+                        rerank=True,
+                    )
                 
                 if search_results:
                     auto_rag_results = search_results

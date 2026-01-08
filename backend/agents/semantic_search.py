@@ -5,10 +5,14 @@ Performs semantic search across documents and returns relevant results
 with optional reranking for improved relevance.
 """
 
+import os
 from typing import Any, Dict, List, Optional
 
 from agents.base import BaseAgent, AgentResult
 from models import LLMClientProtocol
+
+# Check if pgvector is enabled
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 
 class SemanticSearchAgent(BaseAgent):
@@ -65,11 +69,21 @@ class SemanticSearchAgent(BaseAgent):
         
         # Perform semantic search
         if self.retrieval:
-            results = self.retrieval.semantic_search(
-                query=search_query,
-                top_k=top_k,
-                rerank=enable_reranking,
-            )
+            # Use async version if pgvector is enabled
+            if DATABASE_URL and hasattr(self.retrieval, 'semantic_search_pg'):
+                results = await self.retrieval.semantic_search_pg(
+                    query=search_query,
+                    top_k=top_k,
+                    knowledge_base=None,  # Use active knowledge base
+                    rerank=enable_reranking,
+                )
+            else:
+                # File-based: use sync version
+                results = self.retrieval.semantic_search(
+                    query=search_query,
+                    top_k=top_k,
+                    rerank=enable_reranking,
+                )
         else:
             # Fallback: return empty results if retrieval module not set
             results = []
