@@ -33,7 +33,7 @@ if DATABASE_URL:
     import retrieval_pgvector as retrieval
     print("[WORKFLOW] Using pgvector for semantic search")
 else:
-import retrieval
+    import retrieval
     print("[WORKFLOW] Using file-based retrieval")
 
 from demo_handler import is_demo_workflow
