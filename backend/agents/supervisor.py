@@ -3,10 +3,13 @@ Supervisor Agent - Analyzes workflow graph and optimizes execution plans.
 
 The Supervisor understands the downstream nodes and creates an optimized
 execution plan based on the query and available tools.
+
+Supports Auto-RAG mode: automatically retrieves relevant context before planning.
 """
 
 import json
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 from agents.base import BaseAgent, AgentResult
@@ -14,6 +17,13 @@ from models import LLMClientProtocol
 
 # Get workflow logger
 logger = logging.getLogger("workflow")
+
+# Import retrieval module (pgvector or file-based)
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+if DATABASE_URL:
+    import retrieval_pgvector as retrieval_module
+else:
+    import retrieval as retrieval_module
 
 
 class SupervisorAgent(BaseAgent):
@@ -83,8 +93,38 @@ Be concise and focused on guiding the workflow execution."""
         planning_style = settings.get("planningStyle", "optimized")
         optimization_level = settings.get("optimizationLevel", "basic")
         supervisor_prompt = settings.get("supervisorPrompt", "")
+        auto_rag = settings.get("autoRAG", False)
         
         logger.debug(f"Planning style: {planning_style}, Optimization: {optimization_level}")
+        logger.debug(f"Auto-RAG enabled: {auto_rag}")
+        
+        # Auto-RAG: Automatically retrieve relevant context before planning
+        auto_rag_context = ""
+        auto_rag_results = []
+        if auto_rag:
+            try:
+                logger.info("[SUPERVISOR AUTO-RAG] Searching knowledge base...")
+                search_results = retrieval_module.semantic_search(
+                    query=user_message,
+                    top_k=5,
+                    rerank=True,
+                )
+                
+                if search_results:
+                    auto_rag_results = search_results
+                    context_snippets = []
+                    for result in search_results:
+                        title = result.get("title", "Unknown")
+                        snippet = result.get("snippet", "")[:1000]
+                        score = result.get("score", 0)
+                        context_snippets.append(f"[{title}] (relevance: {score}%)\n{snippet}")
+                    
+                    auto_rag_context = "\n\n---\nRELEVANT KNOWLEDGE BASE CONTEXT:\n" + "\n\n".join(context_snippets)
+                    logger.info(f"[SUPERVISOR AUTO-RAG] Found {len(search_results)} relevant documents")
+                else:
+                    logger.info("[SUPERVISOR AUTO-RAG] No relevant documents found")
+            except Exception as e:
+                logger.warning(f"[SUPERVISOR AUTO-RAG] Search failed: {e}")
         
         # Get downstream nodes from context
         downstream_nodes = context.get("downstream_nodes", [])
@@ -127,6 +167,10 @@ Be concise and focused on guiding the workflow execution."""
         else:
             full_user_message = user_message
         
+        # Add Auto-RAG context if available
+        if auto_rag_context:
+            full_user_message = full_user_message + auto_rag_context
+        
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": full_user_message},
@@ -157,6 +201,21 @@ Be concise and focused on guiding the workflow execution."""
             logger.info("  [... truncated ...]")
         logger.info("-" * 40)
         
+        # Build context updates
+        context_updates = {
+            "supervisor_plan": plan,
+            "supervisor_guidance": plan,
+        }
+        
+        # Include Auto-RAG results if available
+        if auto_rag_results:
+            context_updates["semantic_results"] = auto_rag_results
+            context_updates["context_snippets"] = [
+                f"[{r.get('title', 'Unknown')}] {r.get('snippet', '')[:500]}"
+                for r in auto_rag_results
+            ]
+            context_updates["auto_rag_used"] = True
+        
         return AgentResult(
             agent=self.agent_id,
             model=actual_model,
@@ -166,10 +225,9 @@ Be concise and focused on guiding the workflow execution."""
                 "planning_style": planning_style,
                 "optimization_level": optimization_level,
                 "analyzed_document": has_uploaded_content,
+                "auto_rag": auto_rag,
+                "auto_rag_results": len(auto_rag_results) if auto_rag_results else 0,
             },
-            context_updates={
-                "supervisor_plan": plan,
-                "supervisor_guidance": plan,
-            },
+            context_updates=context_updates,
         )
 

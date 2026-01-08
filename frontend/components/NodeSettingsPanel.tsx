@@ -201,6 +201,12 @@ export const NodeSettingsPanel = memo(function NodeSettingsPanel({
                                 ]}
                                 helpText="How aggressively to optimize workflow execution"
                             />
+                            <CheckboxSetting
+                                label="Auto-RAG (Auto-retrieve context)"
+                                checked={settings.autoRAG ?? false}
+                                onChange={(v) => setSettings({ ...settings, autoRAG: v })}
+                                helpText="Automatically search knowledge base and include relevant context before planning"
+                            />
                             <TextareaSetting
                                 label="Supervisor Instructions"
                                 value={settings.supervisorPrompt ?? ""}

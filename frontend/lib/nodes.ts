@@ -44,6 +44,7 @@ export type NodeSettings = {
     planningStyle?: "detailed" | "brief" | "optimized";
     optimizationLevel?: "none" | "basic" | "aggressive";
     supervisorPrompt?: string; // Custom prompt/instructions for the supervisor agent
+    autoRAG?: boolean; // Automatically retrieve context from knowledge base before planning
     
     // Orchestrator settings
     toolSelectionStrategy?: "conservative" | "balanced" | "aggressive";
@@ -143,7 +144,8 @@ export const NODE_TYPES: NodeType[] = [
         hasSettings: true,
         defaultSettings: {
             planningStyle: "optimized",
-            optimizationLevel: "basic"
+            optimizationLevel: "basic",
+            autoRAG: false,
         }
     },
     {
