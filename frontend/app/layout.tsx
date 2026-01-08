@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Workflow Builder",
-  description: "Build and visualize AI workflows",
+  title: "Cogniveil WorkflowBuilder",
+  description: "Build and visualize AI workflows by Cogniveil",
 };
 
 export default function RootLayout({
