@@ -438,7 +438,8 @@ async def api_database_status():
                         AND attname = 'embedding'
                     """)
                     if dim_result:
-                        current_dim = dim_result - 4  # atttypmod stores dim + 4
+                        # For pgvector, atttypmod directly stores the dimension
+                        current_dim = dim_result
                 except:
                     pass
             

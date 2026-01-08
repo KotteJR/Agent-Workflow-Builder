@@ -73,16 +73,37 @@ async def initialize_database():
         """)
         
         if table_exists:
-            # Check current dimension
-            current_dim = await conn.fetchval("""
-                SELECT atttypmod FROM pg_attribute 
-                WHERE attrelid = 'documents'::regclass 
-                AND attname = 'embedding'
-            """)
+            # Check current dimension - try multiple methods
+            current_dim = None
+            try:
+                # Method 1: Check atttypmod (for vector type, this is the dimension)
+                dim_result = await conn.fetchval("""
+                    SELECT atttypmod FROM pg_attribute 
+                    WHERE attrelid = 'documents'::regclass 
+                    AND attname = 'embedding'
+                """)
+                if dim_result:
+                    # For pgvector, atttypmod directly stores the dimension
+                    current_dim = dim_result
+            except:
+                pass
             
-            # atttypmod for vector stores dimension + 4
-            if current_dim and (current_dim - 4) != embedding_dim:
-                print(f"[PGVECTOR] Dimension mismatch (current: {current_dim - 4}, needed: {embedding_dim}). Recreating table...")
+            # If still no dimension, try querying the type directly
+            if current_dim is None:
+                try:
+                    type_info = await conn.fetchrow("""
+                        SELECT typname, typtype 
+                        FROM pg_type t
+                        JOIN pg_attribute a ON a.atttypid = t.oid
+                        WHERE a.attrelid = 'documents'::regclass 
+                        AND a.attname = 'embedding'
+                    """)
+                    # For vector type, we need to check differently
+                except:
+                    pass
+            
+            if current_dim and current_dim != embedding_dim:
+                print(f"[PGVECTOR] Dimension mismatch (current: {current_dim}, needed: {embedding_dim}). Recreating table...")
                 await conn.execute("DROP TABLE IF EXISTS documents CASCADE;")
                 table_exists = False
         
