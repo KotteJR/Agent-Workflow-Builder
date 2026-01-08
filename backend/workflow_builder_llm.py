@@ -15,34 +15,143 @@ from models import get_llm_client
 
 # Node type definitions for the LLM
 NODE_DEFINITIONS = """
-Available Node Types:
+=== AVAILABLE NODE TYPES ===
 
-INPUT NODES (always start workflows with one of these):
-- prompt: Starting point for text-based workflows. User provides initial query or instructions. Has inline text editor.
-- upload: Upload files (PDF, CSV, TXT, MD, DOC, DOCX) to be processed. Has inline file upload interface.
+## INPUT NODES (Start workflows with ONE of these)
 
-AGENT NODES:
-- supervisor: CRITICAL - Analyzes workflow graph structure, understands downstream nodes, plans execution, identifies optimization opportunities. ALWAYS include this node in workflows. Settings: planningStyle (detailed/brief/optimized), optimizationLevel (none/basic/aggressive), supervisorPrompt (optional custom instructions string)
-- orchestrator: Intelligently selects which tools to execute based on context and query requirements. Settings: toolSelectionStrategy (conservative/balanced/aggressive), maxTools (1-10)
-- semantic_search: Performs semantic search across knowledge base using vector embeddings. Finds relevant documents based on meaning. Settings: topK (1-20), enableReranking (true/false)
-- sampler: Generates multiple diverse candidate answers by exploring different reasoning paths. Settings: numResponses (1-10)
-- synthesis: Synthesizes information from multiple sources, candidates, and tool outputs into coherent final answer. Settings: maxWords (number)
-- summarization: Summarizes long outputs, extracts key points, creates executive summaries. Settings: maxWords (number)
-- formatting: Formats outputs to specific format. Settings: outputFormat (json/xml/markdown/html/csv/yaml)
-- transformer: Transforms data from one format to another (e.g., PDF to Excel, JSON to XML). Settings: fromFormat (string), toFormat (string)
-- image_generator: Generates images from text descriptions. Settings: imageType (diagram/photo/artistic/cartoon/illustration)
+1. **prompt**
+   - Category: Input
+   - Description: Starting point for text-based workflows. User types their query or instructions here.
+   - Use when: User wants to ask questions, get analysis, or process text-based requests.
+   - Settings: None (just has text input area)
 
-OUTPUT NODES (always end workflows with one of these):
-- response: Final output node that delivers the workflow result as text/structured data.
-- spreadsheet: Output structured data in spreadsheet/Excel format. Use this when user wants Excel/CSV output.
+2. **upload**
+   - Category: Input
+   - Description: Upload files to be processed. Supports PDF (including scanned with OCR), CSV, TXT, MD, DOC, DOCX.
+   - Use when: User wants to convert documents, extract data from files, analyze uploaded content.
+   - Settings: None (has file upload interface)
 
-COMING SOON (do NOT include in workflows):
-- web_search: Real-time web search (not available yet)
-- aggregator: Combines outputs from multiple nodes (not available yet)
-- conditional_branch: Routes based on conditions (not available yet)
-- research: In-depth research agent (not available yet)
-- router: Content-based routing (not available yet)
-- planning: Detailed execution planning (not available yet)
+## AGENT NODES (Processing and Intelligence)
+
+3. **supervisor** (CRITICAL - Always include early in workflow)
+   - Category: Agent
+   - Description: Analyzes the entire workflow graph structure, understands what nodes are downstream, creates execution plans, identifies optimization opportunities, and coordinates task delegation.
+   - Use when: ALWAYS include this after input node. Essential for complex workflows.
+   - Settings:
+     * planningStyle: "detailed" | "brief" | "optimized" (default: optimized)
+     * optimizationLevel: "none" | "basic" | "aggressive" (default: basic)
+     * supervisorPrompt: Optional custom instructions string
+
+4. **orchestrator**
+   - Category: Agent
+   - Description: Intelligently selects which downstream tools/paths to execute based on context and query. Acts as a decision point that routes to the appropriate processing path.
+   - Use when: Workflow has multiple possible paths (e.g., image generation OR text search). Orchestrator decides which to use.
+   - Settings:
+     * toolSelectionStrategy: "conservative" | "balanced" | "aggressive"
+     * maxTools: 1-10 (default: 3)
+
+5. **semantic_search**
+   - Category: Tool
+   - Description: Searches the knowledge base using semantic (meaning-based) search with vector embeddings. Finds relevant documents even if exact keywords don't match.
+   - Use when: User needs information from the knowledge base, asking questions that require context from stored documents.
+   - Settings:
+     * topK: 1-20 (number of results, default: 5)
+     * enableReranking: true/false (rerank for better relevance)
+
+6. **sampler**
+   - Category: Agent
+   - Description: Generates multiple diverse candidate answers by exploring different reasoning paths. Improves quality by considering various perspectives.
+   - Use when: Need high-quality, well-reasoned answers. Works best with synthesis node to combine best parts.
+   - Settings:
+     * numResponses: 1-10 (default: 5)
+
+7. **synthesis**
+   - Category: Agent
+   - Description: Synthesizes information from multiple sources (search results, sampler outputs, tool results) into one coherent, well-structured answer.
+   - Use when: Need to combine information from multiple nodes into a final answer. Essential after sampler node.
+   - Settings:
+     * maxWords: number (max output length)
+
+8. **summarization**
+   - Category: Agent
+   - Description: Creates concise summaries of long content. Extracts key points and creates executive summaries.
+   - Use when: Content is too long and needs to be condensed, or user explicitly asks for a summary.
+   - Settings:
+     * maxWords: number (default: 100)
+
+9. **formatting**
+   - Category: Agent
+   - Description: Converts output to a specific structured format (JSON, XML, HTML, etc.).
+   - Use when: User needs output in a specific format, or data needs to be structured.
+   - Settings:
+     * outputFormat: "json" | "xml" | "markdown" | "html" | "csv" | "yaml"
+
+10. **transformer**
+    - Category: Agent
+    - Description: Transforms uploaded documents into structured data. Excellent for PDF to Excel/CSV conversion, data extraction from documents.
+    - Use when: User uploads a document and wants to extract/convert data from it.
+    - Settings:
+      * fromFormat: string (e.g., "pdf", "text")
+      * toFormat: string (e.g., "csv", "json", "excel")
+      * useAdvancedModel: true/false (use large model for better extraction)
+
+11. **image_generator**
+    - Category: Tool
+    - Description: Generates images from text descriptions using AI. Supports diagrams, flowcharts, infographics, photos, illustrations.
+    - Use when: User wants to CREATE an image, diagram, flowchart, or visual representation.
+    - Settings:
+      * imageType: "diagram" | "flowchart" | "infographic" | "photo" | "illustration"
+      * stylePreset: "professional" | "minimal" | "detailed"
+      * customInstructions: Optional style instructions
+      * imageDetailLevel: 0-100 slider
+
+12. **translator**
+    - Category: Tool
+    - Description: Translates text between 50+ languages. Preserves formatting, handles technical terms. Supports auto-detection of source language.
+    - Use when: User wants content translated to another language.
+    - Settings:
+      * sourceLanguage: language code or "auto" (default: auto)
+      * targetLanguage: language code (default: "en")
+    - Supported languages: English (en), Spanish (es), French (fr), German (de), Italian (it), Portuguese (pt), Russian (ru), Chinese (zh), Japanese (ja), Korean (ko), Arabic (ar), Hindi (hi), Turkish (tr), Polish (pl), Dutch (nl), Swedish (sv), Norwegian (no), Danish (da), Finnish (fi), Greek (el), Hebrew (he), Thai (th), Vietnamese (vi), Indonesian (id), Malay (ms), Serbian (sr), Macedonian (mk), and more.
+
+## OUTPUT NODES (End workflows with ONE of these)
+
+13. **response**
+    - Category: Output
+    - Description: Final output as text or structured data. Shows the workflow result to the user.
+    - Use when: Default output for most workflows (text answers, explanations, analyses).
+    - Settings: None
+
+14. **spreadsheet**
+    - Category: Output
+    - Description: Output structured data as spreadsheet/Excel format. Creates downloadable CSV/Excel files.
+    - Use when: User wants Excel output, CSV data, or tabular results.
+    - Settings:
+      * customColumns: comma-separated column names
+      * extractionDepth: "basic" | "detailed" | "comprehensive"
+
+## NOT YET AVAILABLE (do NOT include):
+- web_search, aggregator, conditional_branch, research, router, planning
+
+=== WORKFLOW PATTERNS ===
+
+Pattern 1: Simple Q&A (prompt-based)
+prompt → supervisor → semantic_search → synthesis → response
+
+Pattern 2: Document Processing (upload-based)
+upload → supervisor → transformer → spreadsheet
+
+Pattern 3: Advanced Research
+prompt → supervisor → semantic_search → orchestrator → sampler → synthesis → summarization → response
+
+Pattern 4: Multi-path with Image Generation
+prompt → supervisor → semantic_search → orchestrator → [image_generator OR (sampler → synthesis)] → response
+
+Pattern 5: Translation Workflow
+prompt → supervisor → semantic_search → synthesis → translator → response
+
+Pattern 6: Document to Translated Output
+upload → supervisor → transformer → translator → response
 """
 
 SYSTEM_PROMPT = f"""You are a Workflow Builder Assistant. You help users create AI agent workflows by understanding their needs and generating workflow configurations.
