@@ -89,7 +89,7 @@ export interface ToolOutputs {
     images: Array<{ prompt: string; url: string; style: string }>;
     calculations: Array<{ expression: string; result: unknown; success: boolean }>;
     web_results: Array<{ title: string; snippet: string; url: string }>;
-    docs: Array<{ title: string; snippet: string; score: number }>;
+    docs: SourceDocument[];
 }
 
 export interface WorkflowExecutionResult {
@@ -135,11 +135,19 @@ export interface NodeExecutionState {
     startTime?: number;
 }
 
+export interface SourceDocument {
+    title: string;
+    snippet: string;
+    score?: number;
+    score_type?: string;
+}
+
 export interface NodeOutputData {
     content: string;
     format?: "text" | "csv" | "json" | "spreadsheet" | "image";
     timestamp: number;
     images?: Array<{ prompt: string; url: string; style: string }>;
+    sources?: SourceDocument[];
 }
 
 export interface SSEDoneData extends WorkflowExecutionResult {}

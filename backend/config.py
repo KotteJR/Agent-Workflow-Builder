@@ -34,8 +34,9 @@ class Config:
     OLLAMA_EMBEDDING_MODEL: str = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
     
     # Image Generation
-    IMAGE_PROVIDER: Literal["dalle", "gemini"] = os.getenv("IMAGE_PROVIDER", "gemini").lower()  # type: ignore
+    IMAGE_PROVIDER: Literal["dalle", "gemini", "nano-banana"] = os.getenv("IMAGE_PROVIDER", "nano-banana").lower()  # type: ignore
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
+    GEMINI_IMAGE_MODEL: str = os.getenv("GEMINI_IMAGE_MODEL", "gemini-3-pro-image-preview")  # Gemini model that supports image generation
     
     # Server Configuration
     HOST: str = os.getenv("HOST", "0.0.0.0")

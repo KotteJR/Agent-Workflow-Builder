@@ -484,72 +484,56 @@ async def execute_workflow(
                         {"executed_deps": executed_deps, "excluded_deps": excluded_deps}
                     )
             
-            # Special handling for tool nodes connected to orchestrator
-            if node_type == "image_generator":
-                # Check if orchestrator decided to use this tool
-                tools_to_execute = context.get("orchestrator_result", {}).get("tools_to_execute", [])
-                is_connected_to_orchestrator = any(
-                    edge["source"].startswith("orchestrator") and edge["target"] == node_id
-                    for edge in valid_edges
-                )
-                
-                workflow_logger.info(f"IMAGE_GENERATOR check:")
-                workflow_logger.info(f"  Tools to execute: {tools_to_execute}")
-                workflow_logger.info(f"  Connected to orchestrator: {is_connected_to_orchestrator}")
-                
-                if is_connected_to_orchestrator and "image_generator" not in tools_to_execute:
-                    should_execute = False
-                    excluded_nodes.add(node_id)
-                    
-                    debugger.log_branch_decision(
-                        node_id, node_type, "EXCLUDE",
-                        f"Orchestrator did not select image_generator. Selected: {tools_to_execute}",
-                        {"tools_to_execute": tools_to_execute}
-                    )
-                    debugger.log_node_excluded(node_id, node_type, "Not selected by orchestrator")
-                    
-                    yield _sse_event("agent_complete", {
-                        "agent": node_id,
-                        "step": {
-                            "agent": node_type,
-                            "model": "none",
-                            "action": "exclude",
-                            "content": "Excluded (not selected by orchestrator)",
-                            "excluded": True,
-                        }
-                    })
-                    continue
-                elif is_connected_to_orchestrator and "image_generator" in tools_to_execute:
-                    debugger.log_branch_decision(
-                        node_id, node_type, "EXECUTE",
-                        "Orchestrator selected image_generator",
-                        {"tools_to_execute": tools_to_execute}
-                    )
+            # === ORCHESTRATOR BRANCH ROUTING ===
+            # When orchestrator selects specific tools, ONLY those paths should execute.
+            # All other paths from orchestrator should be excluded.
             
-            # Tool nodes connected to orchestrator - only execute if selected
-            if node_type == "sampler":
+            # Check if this node is directly connected to an orchestrator
+            orchestrator_parent = None
+            for edge in valid_edges:
+                if edge["target"] == node_id and edge["source"].startswith("orchestrator"):
+                    orchestrator_parent = edge["source"]
+                    break
+            
+            if orchestrator_parent:
                 tools_to_execute = context.get("orchestrator_result", {}).get("tools_to_execute", [])
-                is_connected_to_orchestrator = any(
-                    edge["source"].startswith("orchestrator") and edge["target"] == node_id
-                    for edge in valid_edges
-                )
                 
-                workflow_logger.info(f"SAMPLER check:")
-                workflow_logger.info(f"  Tools to execute: {tools_to_execute}")
-                workflow_logger.info(f"  Connected to orchestrator: {is_connected_to_orchestrator}")
+                workflow_logger.info(f"ORCHESTRATOR CHILD check for {node_id} ({node_type}):")
+                workflow_logger.info(f"  Orchestrator parent: {orchestrator_parent}")
+                workflow_logger.info(f"  Tools selected by orchestrator: {tools_to_execute}")
                 
-                # If orchestrator chose image_generator path, exclude sampler path
-                if is_connected_to_orchestrator and "image_generator" in tools_to_execute:
+                # Determine if this node should execute based on orchestrator decision
+                should_execute_based_on_orchestrator = False
+                
+                if "image_generator" in tools_to_execute:
+                    # Image path was selected - only image_generator should execute
+                    if node_type == "image_generator":
+                        should_execute_based_on_orchestrator = True
+                        workflow_logger.info(f"  -> EXECUTE: This is the selected image_generator path")
+                    else:
+                        # This is an alternative path (e.g., semantic_search) - exclude it
+                        should_execute_based_on_orchestrator = False
+                        workflow_logger.info(f"  -> EXCLUDE: image_generator selected, this path ({node_type}) excluded")
+                else:
+                    # No image_generator selected - default text path executes
+                    if node_type == "image_generator":
+                        should_execute_based_on_orchestrator = False
+                        workflow_logger.info(f"  -> EXCLUDE: image_generator not selected")
+                    else:
+                        # Default path (semantic_search, etc.) should execute
+                        should_execute_based_on_orchestrator = True
+                        workflow_logger.info(f"  -> EXECUTE: Default path (no image_generator selected)")
+                
+                if not should_execute_based_on_orchestrator:
                     should_execute = False
                     excluded_nodes.add(node_id)
-                    context["candidates"] = []
                     
                     debugger.log_branch_decision(
                         node_id, node_type, "EXCLUDE",
-                        f"Orchestrator selected image_generator path. Sampler path excluded.",
-                        {"tools_to_execute": tools_to_execute}
+                        f"Orchestrator routing: Selected tools={tools_to_execute}, this node type={node_type}",
+                        {"tools_to_execute": tools_to_execute, "node_type": node_type}
                     )
-                    debugger.log_node_excluded(node_id, node_type, "Image path was selected by orchestrator")
+                    debugger.log_node_excluded(node_id, node_type, f"Not on selected orchestrator path")
                     
                     yield _sse_event("agent_complete", {
                         "agent": node_id,
@@ -557,7 +541,7 @@ async def execute_workflow(
                             "agent": node_type,
                             "model": "none",
                             "action": "exclude",
-                            "content": "Excluded (image path selected by orchestrator)",
+                            "content": f"Excluded (orchestrator selected: {tools_to_execute or 'default text path'})",
                             "excluded": True,
                         }
                     })
@@ -565,8 +549,104 @@ async def execute_workflow(
                 else:
                     debugger.log_branch_decision(
                         node_id, node_type, "EXECUTE",
-                        f"Sampler path active (image_generator not selected)",
+                        f"On selected orchestrator path: tools={tools_to_execute}",
                         {"tools_to_execute": tools_to_execute}
+                    )
+            
+            # === SUPERVISOR PATH ROUTING ===
+            # When supervisor explicitly selects a path (IMAGE_GENERATOR or SEMANTIC_SEARCH),
+            # ONLY that path should execute. ALL OTHER NODES ON DIFFERENT PATHS should be excluded.
+            # This applies to ALL nodes, not just direct children of supervisor.
+            
+            # Parse supervisor guidance to find WORKFLOW PATH (check for any supervisor in workflow)
+            supervisor_guidance = context.get("supervisor_guidance", "")
+            supervisor_plan = context.get("supervisor_plan", "")
+            
+            # Check both guidance and plan for workflow path
+            workflow_path_text = f"{supervisor_guidance}\n{supervisor_plan}"
+            
+            # Extract the workflow path selected by supervisor
+            selected_path = None
+            if "WORKFLOW PATH:" in workflow_path_text.upper():
+                for line in workflow_path_text.split("\n"):
+                    if "WORKFLOW PATH:" in line.upper():
+                        path_line = line.upper()
+                        if "IMAGE_GENERATOR" in path_line or "IMAGE GENERATOR" in path_line:
+                            selected_path = "IMAGE_GENERATOR"
+                            break
+                        elif "SEMANTIC_SEARCH" in path_line or "SEMANTIC SEARCH" in path_line:
+                            selected_path = "SEMANTIC_SEARCH"
+                            break
+            
+            # Apply supervisor path routing to ALL relevant nodes (not just supervisor children)
+            if selected_path:
+                workflow_logger.info(f"SUPERVISOR PATH check for {node_id} ({node_type}):")
+                workflow_logger.info(f"  Supervisor selected path: {selected_path}")
+                
+                # Define which node types belong to which path
+                image_path_nodes = {"image_generator"}
+                text_path_nodes = {"semantic_search", "sampler", "synthesis"}
+                neutral_nodes = {"prompt", "supervisor", "orchestrator", "response", "spreadsheet", "transformer"}
+                
+                # Determine if this node should execute based on supervisor path selection
+                should_execute_based_on_supervisor = True
+                exclude_reason = None
+                
+                if selected_path == "IMAGE_GENERATOR":
+                    # Image path was selected
+                    if node_type in text_path_nodes:
+                        # This is a text/search path node - EXCLUDE IT
+                        should_execute_based_on_supervisor = False
+                        exclude_reason = f"IMAGE_GENERATOR path selected, {node_type} is on text path"
+                        workflow_logger.info(f"  -> EXCLUDE: {exclude_reason}")
+                    elif node_type in image_path_nodes:
+                        workflow_logger.info(f"  -> EXECUTE: This is the selected IMAGE_GENERATOR path")
+                    elif node_type in neutral_nodes:
+                        workflow_logger.info(f"  -> EXECUTE: Neutral node type ({node_type})")
+                    else:
+                        workflow_logger.info(f"  -> EXECUTE: Unknown node type ({node_type}), allowing")
+                        
+                elif selected_path == "SEMANTIC_SEARCH":
+                    # Text/search path was selected
+                    if node_type in image_path_nodes:
+                        # This is an image path node - EXCLUDE IT
+                        should_execute_based_on_supervisor = False
+                        exclude_reason = f"SEMANTIC_SEARCH path selected, {node_type} is on image path"
+                        workflow_logger.info(f"  -> EXCLUDE: {exclude_reason}")
+                    elif node_type in text_path_nodes:
+                        workflow_logger.info(f"  -> EXECUTE: This is the selected SEMANTIC_SEARCH path")
+                    elif node_type in neutral_nodes:
+                        workflow_logger.info(f"  -> EXECUTE: Neutral node type ({node_type})")
+                    else:
+                        workflow_logger.info(f"  -> EXECUTE: Unknown node type ({node_type}), allowing")
+                
+                if not should_execute_based_on_supervisor:
+                    should_execute = False
+                    excluded_nodes.add(node_id)
+                    
+                    debugger.log_branch_decision(
+                        node_id, node_type, "EXCLUDE",
+                        f"Supervisor routing: {exclude_reason}",
+                        {"selected_path": selected_path, "node_type": node_type}
+                    )
+                    debugger.log_node_excluded(node_id, node_type, f"Not on selected supervisor path: {selected_path}")
+                    
+                    yield _sse_event("agent_complete", {
+                        "agent": node_id,
+                        "step": {
+                            "agent": node_type,
+                            "model": "none",
+                            "action": "exclude",
+                            "content": f"Excluded (supervisor selected: {selected_path})",
+                            "excluded": True,
+                        }
+                    })
+                    continue
+                else:
+                    debugger.log_branch_decision(
+                        node_id, node_type, "EXECUTE",
+                        f"On selected supervisor path: {selected_path}",
+                        {"selected_path": selected_path}
                     )
             
             if not should_execute:
@@ -588,6 +668,7 @@ async def execute_workflow(
                 large_model=large_model,
                 valid_edges=valid_edges,
                 reachable_nodes=reachable_nodes,
+                node_map=node_map,
             )
             
             if result:
@@ -704,6 +785,7 @@ async def _execute_agent(
     large_model: str,
     valid_edges: List[Dict[str, str]],
     reachable_nodes: Set[str],
+    node_map: Dict[str, Any],
 ) -> Optional[AgentResult]:
     """
     Execute a single agent based on node type.
@@ -761,10 +843,28 @@ async def _execute_agent(
     if node_type == "orchestrator":
         available_tools = []
         for node_id in reachable_nodes:
-            if "image_generator" in node_id:
-                available_tools.append("image_generator")
-            elif "web_search" in node_id:
-                available_tools.append("web_search")
+            # Look up the node in node_map to get its actual type
+            node = node_map.get(node_id)
+            if node:
+                node_data = node.get("data", {})
+                other_node_type = node_data.get("nodeType", "")
+                
+                # Check if this is a tool node that should be available
+                if other_node_type == "image_generator" and "image_generator" not in available_tools:
+                    available_tools.append("image_generator")
+                elif other_node_type == "web_search" and "web_search" not in available_tools:
+                    available_tools.append("web_search")
+        
+        workflow_logger.debug(f"Orchestrator available tools detection:")
+        workflow_logger.debug(f"  Reachable nodes: {reachable_nodes}")
+        for node_id in reachable_nodes:
+            node = node_map.get(node_id)
+            if node:
+                node_data = node.get("data", {})
+                other_node_type = node_data.get("nodeType", "")
+                workflow_logger.debug(f"    {node_id} -> {other_node_type}")
+        workflow_logger.debug(f"  Detected available tools: {available_tools}")
+        
         context["available_tools"] = available_tools
     
     # Execute agent

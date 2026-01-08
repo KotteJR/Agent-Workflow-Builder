@@ -6,5 +6,9 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 
 
+*-* nGrok Start *-* 
+./start-backend-ngrok.sh
+
+
 *-* Local Frontend *-*
 npm run dev

@@ -263,24 +263,119 @@ export const NodeSettingsPanel = memo(function NodeSettingsPanel({
 
                     {/* Image Generator Settings */}
                     {nodeType === "image_generator" && (
-                        <SelectSetting
-                            label="Image Type"
-                            value={settings.imageType ?? "photo"}
-                            onChange={(v) =>
-                                setSettings({
-                                    ...settings,
-                                    imageType: v as NodeSettings["imageType"],
-                                })
-                            }
-                            options={[
-                                { value: "diagram", label: "Diagram" },
-                                { value: "photo", label: "Photo" },
-                                { value: "artistic", label: "Artistic" },
-                                { value: "cartoon", label: "Cartoon" },
-                                { value: "illustration", label: "Illustration" },
-                            ]}
-                            helpText="Type of image to generate"
-                        />
+                        <div className="space-y-5">
+                            <SelectSetting
+                                label="Image Type"
+                                value={settings.imageType ?? "diagram"}
+                                onChange={(v) =>
+                                    setSettings({
+                                        ...settings,
+                                        imageType: v as NodeSettings["imageType"],
+                                    })
+                                }
+                                options={[
+                                    { value: "diagram", label: "📊 Diagram" },
+                                    { value: "flowchart", label: "📋 Flowchart" },
+                                    { value: "infographic", label: "📈 Infographic" },
+                                    { value: "photo", label: "📷 Photo" },
+                                    { value: "illustration", label: "🎨 Illustration" },
+                                ]}
+                                helpText="Base type of image to generate"
+                            />
+                            
+                            <SelectSetting
+                                label="Style Preset"
+                                value={settings.stylePreset ?? "professional"}
+                                onChange={(v) =>
+                                    setSettings({
+                                        ...settings,
+                                        stylePreset: v as NodeSettings["stylePreset"],
+                                    })
+                                }
+                                options={[
+                                    { value: "professional", label: "Professional (Business/Corporate)" },
+                                    { value: "minimal", label: "Minimal (Simple/Clean)" },
+                                    { value: "detailed", label: "Detailed (Comprehensive)" },
+                                ]}
+                                helpText="Overall style approach"
+                            />
+                            
+                            {/* Detail Level Slider */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Detail Level: {settings.imageDetailLevel ?? 50}%
+                                </label>
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    value={settings.imageDetailLevel ?? 50}
+                                    onChange={(e) =>
+                                        setSettings({
+                                            ...settings,
+                                            imageDetailLevel: parseInt(e.target.value),
+                                        })
+                                    }
+                                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                                />
+                                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                    <span>Simple</span>
+                                    <span>Balanced</span>
+                                    <span>Intricate</span>
+                                </div>
+                            </div>
+                            
+                            {/* Custom Instructions */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Custom Style Instructions
+                                </label>
+                                <textarea
+                                    value={settings.customInstructions ?? ""}
+                                    onChange={(e) =>
+                                        setSettings({
+                                            ...settings,
+                                            customInstructions: e.target.value,
+                                        })
+                                    }
+                                    placeholder="Add your own style requirements... e.g., 'blue color scheme, include company logo space, vertical layout'"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-sm"
+                                    rows={3}
+                                />
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Optional: Add custom instructions to fine-tune the output
+                                </p>
+                            </div>
+                            
+                            {/* Quick Style Presets */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Quick Presets
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                    {[
+                                        { label: "Corporate", value: "corporate colors, clean, formal" },
+                                        { label: "Technical", value: "technical documentation, precise, labeled" },
+                                        { label: "Modern", value: "modern design, sleek, contemporary" },
+                                        { label: "Colorful", value: "vibrant colors, engaging, eye-catching" },
+                                    ].map((preset) => (
+                                        <button
+                                            key={preset.label}
+                                            type="button"
+                                            onClick={() =>
+                                                setSettings({
+                                                    ...settings,
+                                                    customInstructions: preset.value,
+                                                })
+                                            }
+                                            className="px-3 py-1 text-xs bg-pink-50 text-pink-700 rounded-full hover:bg-pink-100 transition-colors border border-pink-200"
+                                        >
+                                            {preset.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
                     )}
 
                     {/* Sampler Settings */}

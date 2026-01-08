@@ -57,7 +57,10 @@ export type NodeSettings = {
     timeRange?: "any" | "day" | "week" | "month" | "year";
     
     // Image Generator settings
-    imageType?: "diagram" | "photo" | "artistic" | "cartoon" | "illustration";
+    imageType?: "diagram" | "photo" | "artistic" | "cartoon" | "illustration" | "infographic" | "flowchart";
+    stylePreset?: "professional" | "minimal" | "detailed";
+    customInstructions?: string;  // Custom style instructions from user
+    imageDetailLevel?: number;    // 0-100 slider for detail level
     
     // Sampler settings
     numResponses?: number;
@@ -179,10 +182,13 @@ export const NODE_TYPES: NodeType[] = [
         icon: HiPhoto,
         color: "bg-pink-100 text-pink-600 border-pink-200",
         category: "tool",
-        description: "Generates images from text descriptions using AI models. Supports various types including diagrams, photos, and artistic renderings. Configure image type in settings.",
+        description: "Generates images from text descriptions using AI models. Supports diagrams, flowcharts, infographics, and more. Customize with style presets and your own instructions.",
         hasSettings: true,
         defaultSettings: {
-            imageType: "photo"
+            imageType: "diagram",
+            stylePreset: "professional",
+            customInstructions: "",
+            imageDetailLevel: 50
         }
     },
     {

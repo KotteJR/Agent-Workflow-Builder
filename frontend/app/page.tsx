@@ -509,6 +509,7 @@ function FlowCanvas() {
                     const outputContent = result.answer || "";
                     const isSpreadsheet = (result as any).output_format === "spreadsheet";
                     const hasImages = result.tool_outputs?.images?.length > 0;
+                    const sources = result.tool_outputs?.docs || [];
                     
                     // Find output nodes and store the result
                     const newOutputs = new Map<string, NodeOutputData>();
@@ -520,6 +521,7 @@ function FlowCanvas() {
                                 format: hasImages ? "image" : (isSpreadsheet ? "spreadsheet" : "text"),
                                 timestamp: Date.now(),
                                 images: result.tool_outputs?.images,
+                                sources: sources,
                             });
                         }
                     }

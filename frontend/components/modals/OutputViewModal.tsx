@@ -1,8 +1,8 @@
 "use client";
 
 import { memo, useCallback, useMemo, useState } from "react";
-import { HiXMark, HiDocumentArrowDown, HiClipboardDocument, HiTableCells, HiCodeBracket } from "react-icons/hi2";
-import type { NodeOutputData } from "@/lib/types";
+import { HiXMark, HiDocumentArrowDown, HiClipboardDocument, HiTableCells, HiCodeBracket, HiDocumentText, HiChevronDown, HiChevronUp } from "react-icons/hi2";
+import type { NodeOutputData, SourceDocument } from "@/lib/types";
 
 interface OutputViewModalProps {
     isOpen: boolean;
@@ -11,6 +11,154 @@ interface OutputViewModalProps {
     nodeType: string;
     outputData?: NodeOutputData;
 }
+
+// Source document modal component
+const SourceModal = memo(function SourceModal({ 
+    source, 
+    onClose 
+}: { 
+    source: SourceDocument; 
+    onClose: () => void;
+}) {
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110]">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+                <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <div>
+                        <h3 className="font-semibold text-gray-900">{source.title}</h3>
+                        {source.score !== undefined && (
+                            <span className="text-xs text-blue-600 font-medium">
+                                {Math.round(source.score * 100)}% relevance
+                            </span>
+                        )}
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+                    >
+                        <HiXMark className="w-5 h-5 text-gray-500" />
+                    </button>
+                </div>
+                <div className="flex-1 overflow-auto p-4">
+                    <div className="prose prose-sm max-w-none">
+                        <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            {source.snippet}
+                        </pre>
+                    </div>
+                </div>
+                <div className="p-3 border-t border-gray-200 flex justify-end bg-gray-50">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+});
+
+// Sources section component
+const SourcesSection = memo(function SourcesSection({ 
+    sources 
+}: { 
+    sources: SourceDocument[];
+}) {
+    const [isExpanded, setIsExpanded] = useState(true);
+    const [selectedSource, setSelectedSource] = useState<SourceDocument | null>(null);
+
+    if (!sources || sources.length === 0) return null;
+
+    return (
+        <>
+            <div className="mt-6 border-t border-gray-200 pt-4">
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="flex items-center justify-between w-full text-left group"
+                >
+                    <div className="flex items-center gap-2">
+                        <HiDocumentText className="w-5 h-5 text-blue-600" />
+                        <h3 className="font-semibold text-gray-900">
+                            Sources ({sources.length})
+                        </h3>
+                    </div>
+                    <div className="flex items-center gap-1 text-sm text-gray-500 group-hover:text-gray-700">
+                        {isExpanded ? (
+                            <>
+                                <span>Hide</span>
+                                <HiChevronUp className="w-4 h-4" />
+                            </>
+                        ) : (
+                            <>
+                                <span>Show</span>
+                                <HiChevronDown className="w-4 h-4" />
+                            </>
+                        )}
+                    </div>
+                </button>
+
+                {isExpanded && (
+                    <div className="mt-3 space-y-2">
+                        {sources.map((source, index) => {
+                            const relevancePercent = source.score !== undefined 
+                                ? Math.round(source.score * 100) 
+                                : null;
+                            
+                            // Color based on relevance
+                            const getRelevanceColor = (percent: number | null) => {
+                                if (percent === null) return "bg-gray-100 text-gray-600";
+                                if (percent >= 80) return "bg-green-100 text-green-700";
+                                if (percent >= 60) return "bg-blue-100 text-blue-700";
+                                if (percent >= 40) return "bg-yellow-100 text-yellow-700";
+                                return "bg-orange-100 text-orange-700";
+                            };
+
+                            return (
+                                <button
+                                    key={index}
+                                    onClick={() => setSelectedSource(source)}
+                                    className="w-full text-left p-3 bg-gray-50 hover:bg-blue-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-all group"
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="font-medium text-gray-900 truncate">
+                                                    {source.title}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm text-gray-600 line-clamp-2">
+                                                {source.snippet.substring(0, 150)}...
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-1">
+                                            {relevancePercent !== null && (
+                                                <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${getRelevanceColor(relevancePercent)}`}>
+                                                    {relevancePercent}%
+                                                </span>
+                                            )}
+                                            <span className="text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                View →
+                                            </span>
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* Source detail modal */}
+            {selectedSource && (
+                <SourceModal 
+                    source={selectedSource} 
+                    onClose={() => setSelectedSource(null)} 
+                />
+            )}
+        </>
+    );
+});
 
 // Parse CSV content into rows and columns
 function parseCSV(content: string): string[][] {
@@ -233,6 +381,11 @@ export const OutputViewModal = memo(function OutputViewModal({
                                     <p className="text-sm text-gray-600">{outputData.content}</p>
                                 </div>
                             )}
+                            
+                            {/* Sources section for images too */}
+                            {outputData.sources && outputData.sources.length > 0 && (
+                                <SourcesSection sources={outputData.sources} />
+                            )}
                         </div>
                     )}
                     
@@ -301,6 +454,11 @@ export const OutputViewModal = memo(function OutputViewModal({
                                     </span>
                                 )}
                             </div>
+
+                            {/* Sources section */}
+                            {outputData.sources && outputData.sources.length > 0 && (
+                                <SourcesSection sources={outputData.sources} />
+                            )}
                         </div>
                     ) : !hasImages && (
                         <div className="text-center py-12 text-gray-500">
