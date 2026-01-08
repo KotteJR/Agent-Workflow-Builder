@@ -274,6 +274,83 @@ async def api_health():
     }
 
 
+@app.get("/api/ocr-status")
+async def api_ocr_status():
+    """Check OCR dependencies status."""
+    import subprocess
+    import os
+    
+    status = {
+        "tesseract": {"installed": False, "version": None, "error": None},
+        "poppler": {"installed": False, "path": None, "error": None},
+        "pdf2image": {"installed": False, "error": None},
+        "pytesseract": {"installed": False, "error": None},
+        "tessdata_prefix": os.environ.get("TESSDATA_PREFIX", "NOT SET"),
+    }
+    
+    # Check Tesseract
+    try:
+        result = subprocess.run(["tesseract", "--version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            status["tesseract"]["installed"] = True
+            status["tesseract"]["version"] = result.stdout.split("\n")[0]
+        else:
+            status["tesseract"]["error"] = result.stderr
+    except Exception as e:
+        status["tesseract"]["error"] = str(e)
+    
+    # Check Poppler (pdftoppm)
+    try:
+        result = subprocess.run(["which", "pdftoppm"], capture_output=True, text=True)
+        if result.returncode == 0:
+            status["poppler"]["installed"] = True
+            status["poppler"]["path"] = result.stdout.strip()
+        else:
+            status["poppler"]["error"] = "pdftoppm not found"
+    except Exception as e:
+        status["poppler"]["error"] = str(e)
+    
+    # Check pdf2image Python package
+    try:
+        from pdf2image import convert_from_bytes
+        status["pdf2image"]["installed"] = True
+    except ImportError as e:
+        status["pdf2image"]["error"] = str(e)
+    
+    # Check pytesseract Python package
+    try:
+        import pytesseract
+        status["pytesseract"]["installed"] = True
+        # Try to get tesseract command
+        try:
+            status["pytesseract"]["tesseract_cmd"] = pytesseract.pytesseract.tesseract_cmd
+        except:
+            pass
+    except ImportError as e:
+        status["pytesseract"]["error"] = str(e)
+    
+    # Check if tessdata directory exists
+    tessdata_path = os.environ.get("TESSDATA_PREFIX", "/usr/share/tesseract-ocr/5/tessdata")
+    if os.path.exists(tessdata_path):
+        try:
+            files = os.listdir(tessdata_path)
+            status["tessdata_files"] = [f for f in files if f.endswith(".traineddata")]
+        except Exception as e:
+            status["tessdata_files"] = f"Error listing: {e}"
+    else:
+        status["tessdata_files"] = f"Directory not found: {tessdata_path}"
+    
+    # Overall status
+    status["ocr_ready"] = all([
+        status["tesseract"]["installed"],
+        status["poppler"]["installed"],
+        status["pdf2image"]["installed"],
+        status["pytesseract"]["installed"],
+    ])
+    
+    return status
+
+
 # =============================================================================
 # Main Entry Point
 # =============================================================================
