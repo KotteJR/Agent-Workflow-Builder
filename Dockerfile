@@ -6,7 +6,15 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr-eng \
     tesseract-ocr-ara \
     poppler-utils \
+    libpoppler-cpp-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Set Tesseract environment variable
+ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
+
+# Verify OCR installation
+RUN tesseract --version && echo "Tesseract installed successfully"
+RUN which pdftoppm && echo "Poppler installed successfully"
 
 # Set working directory
 WORKDIR /app
