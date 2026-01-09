@@ -50,9 +50,9 @@ const edgeTypes = {
 
 // Default edge options - memoized outside component
 const defaultEdgeOptions = {
-    animated: true,
-    style: { strokeWidth: 2, stroke: "#60a5fa" },
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#60a5fa" },
+    animated: false,
+    style: { strokeWidth: 2, stroke: "#94a3b8", strokeDasharray: "6 4" },
+    markerEnd: { type: MarkerType.ArrowClosed, color: "#94a3b8", width: 16, height: 16 },
     type: "deletable" as const,
 };
 
@@ -505,9 +505,11 @@ function FlowCanvas() {
                     setRunResult(result);
                     setIsRunning(false);
                     
-                    // Store output on output nodes (response, spreadsheet)
+                    // Store output on output nodes (response, spreadsheet, code_viewer)
                     const outputContent = result.answer || "";
-                    const isSpreadsheet = (result as any).output_format === "spreadsheet";
+                    const outputFormat = (result as any).output_format || "text";
+                    const isSpreadsheet = outputFormat === "spreadsheet";
+                    const isCodeOutput = ["html", "presentation", "tsx", "react", "json", "xml", "yaml", "markdown"].includes(outputFormat);
                     const hasImages = result.tool_outputs?.images?.length > 0;
                     const sources = result.tool_outputs?.docs || [];
                     
@@ -515,10 +517,16 @@ function FlowCanvas() {
                     const newOutputs = new Map<string, NodeOutputData>();
                     for (const node of nodes) {
                         const nodeData = node.data as WorkflowNodeData;
-                        if (nodeData.nodeType === "response" || nodeData.nodeType === "spreadsheet") {
+                        if (nodeData.nodeType === "response" || nodeData.nodeType === "spreadsheet" || nodeData.nodeType === "code_viewer") {
+                            let format: NodeOutputData["format"] = "text";
+                            if (hasImages) format = "image";
+                            else if (isSpreadsheet) format = "spreadsheet";
+                            else if (nodeData.nodeType === "code_viewer" && isCodeOutput) format = outputFormat as NodeOutputData["format"];
+                            else if (nodeData.nodeType === "code_viewer") format = "html"; // Default code viewer to html
+                            
                             newOutputs.set(node.id, {
                                 content: outputContent,
-                                format: hasImages ? "image" : (isSpreadsheet ? "spreadsheet" : "text"),
+                                format,
                                 timestamp: Date.now(),
                                 images: result.tool_outputs?.images,
                                 sources: sources,

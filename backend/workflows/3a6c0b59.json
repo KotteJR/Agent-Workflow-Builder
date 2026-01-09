@@ -1,0 +1,126 @@
+{
+  "id": "3a6c0b59",
+  "name": "Presentation Generation Workflow",
+  "user_id": "default",
+  "nodes": [
+    {
+      "id": "node-1",
+      "type": "workflow",
+      "position": {
+        "x": -45,
+        "y": 105
+      },
+      "data": {
+        "nodeType": "prompt",
+        "label": "Prompt",
+        "settings": {},
+        "promptText": "generate me an html component for a website that is 4 cards for food safety scrollable"
+      }
+    },
+    {
+      "id": "node-2",
+      "type": "workflow",
+      "position": {
+        "x": 330,
+        "y": 105
+      },
+      "data": {
+        "nodeType": "supervisor",
+        "label": "Supervisor Agent",
+        "settings": {
+          "planningStyle": "optimized",
+          "optimizationLevel": "basic",
+          "supervisorPrompt": ""
+        }
+      }
+    },
+    {
+      "id": "node-3",
+      "type": "workflow",
+      "position": {
+        "x": 330,
+        "y": 225
+      },
+      "data": {
+        "nodeType": "semantic_search",
+        "label": "Semantic Search",
+        "settings": {
+          "topK": 3,
+          "enableReranking": true
+        }
+      }
+    },
+    {
+      "id": "node-4",
+      "type": "workflow",
+      "position": {
+        "x": 735,
+        "y": 105
+      },
+      "data": {
+        "nodeType": "synthesis",
+        "label": "Synthesis",
+        "settings": {
+          "maxWords": 1000
+        }
+      }
+    },
+    {
+      "id": "node-5",
+      "type": "workflow",
+      "position": {
+        "x": 735,
+        "y": 225
+      },
+      "data": {
+        "nodeType": "formatting",
+        "label": "Formatting",
+        "settings": {
+          "outputFormat": "html"
+        }
+      }
+    },
+    {
+      "id": "node-6",
+      "type": "workflow",
+      "position": {
+        "x": 1230,
+        "y": 120
+      },
+      "data": {
+        "nodeType": "code_viewer",
+        "label": "Code Viewer",
+        "settings": {}
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "source": "node-1",
+      "target": "node-2"
+    },
+    {
+      "id": "edge-2",
+      "source": "node-2",
+      "target": "node-3"
+    },
+    {
+      "id": "edge-3",
+      "source": "node-3",
+      "target": "node-4"
+    },
+    {
+      "id": "edge-4",
+      "source": "node-4",
+      "target": "node-5"
+    },
+    {
+      "id": "edge-5",
+      "source": "node-5",
+      "target": "node-6"
+    }
+  ],
+  "created_at": "2026-01-09T11:30:22.683402Z",
+  "updated_at": "2026-01-09T11:43:15.850092Z"
+}

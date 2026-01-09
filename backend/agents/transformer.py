@@ -1,8 +1,8 @@
 """
-Transformer Agent - Deep document analysis and data transformation.
+Transformer Agent - Professional Document Analysis and Data Extraction.
 
-Converts data between formats with comprehensive document understanding,
-entity extraction, and structured data generation.
+Performs audit-grade document analysis with structured methodology,
+regulatory compliance awareness, and comprehensive data transformation.
 """
 
 from typing import Any, Dict, List, Optional
@@ -13,104 +13,154 @@ from models import LLMClientProtocol
 
 class TransformerAgent(BaseAgent):
     """
-    Transformer Agent that performs deep document analysis and format conversion.
+    Professional Transformer Agent for audit-grade document extraction.
     
-    Capabilities:
-    - Deep document understanding using GPT-4
-    - Comprehensive entity extraction
-    - Intelligent table structure generation
-    - Multi-pass analysis for complex documents
+    Uses a structured 5-step methodology:
+    1. Document Classification
+    2. Schema Detection
+    3. Entity Extraction
+    4. Relationship Mapping
+    5. Validation & Output
     """
     
     agent_id = "transformer"
     display_name = "Transformer Agent"
-    default_model = "large"  # Use large model by default for better understanding
+    default_model = "large"
     
-    SYSTEM_PROMPT_COMPREHENSIVE = """You are an expert Data Analyst and Transformer Agent. Your task is to deeply analyze ANY type of document and extract ALL meaningful structured data into {to_format} format.
+    SYSTEM_PROMPT = """You are an Expert Document Analyst and Data Extraction Specialist. You extract structured data from ANY document type into the most appropriate format.
 
-IMPORTANT: The document content you receive may come from:
-- Text-based PDFs (direct text extraction)
-- Scanned PDFs (OCR-extracted text - may have minor OCR errors, but content is readable)
-- Word documents, text files, or other formats
-- All content is provided as text - analyze it as you would any text document
+═══════════════════════════════════════════════════════════════════════════════
+STEP 1: DOCUMENT TYPE DETECTION (Do this FIRST)
+═══════════════════════════════════════════════════════════════════════════════
 
-STEP 1 - DOCUMENT TYPE DETECTION:
-First, identify what type of document this is:
-- Invoice/Receipt: Extract line items, amounts, dates, vendor info, totals
-- Contract/Agreement: Extract parties, terms, dates, obligations, clauses
-- Resume/CV: Extract contact info, experience entries, education, skills
-- Report/Analysis: Extract findings, metrics, recommendations, summaries
-- Form/Application: Extract all field-value pairs
-- Academic Paper: Extract title, authors, abstract, findings, citations
-- Meeting Notes: Extract attendees, decisions, action items, dates
-- Product Spec: Extract features, requirements, specifications
-- Financial Statement: Extract accounts, balances, periods, transactions
-- Email/Letter: Extract sender, recipient, subject, key points, dates
-- List/Catalog: Extract all items with their attributes
-- Technical Documentation: Extract procedures, parameters, specifications
-- ANY OTHER: Intelligently determine the best structure
+Analyze the document and classify it as ONE of these types:
 
-STEP 2 - INTELLIGENT EXTRACTION:
-1. Thoroughly read and understand the ENTIRE document
-2. Identify the document's purpose and structure
-3. Find ALL entities: people, organizations, dates, numbers, amounts, locations
-4. Extract ALL structured data: tables, lists, key-value pairs, metadata
-5. Capture relationships between entities
-6. Include context that gives meaning to the data
+TYPE A - REGULATORY/COMPLIANCE DOCUMENTS:
+• Healthcare accreditation (JCI, JCIA, CBAHI, Joint Commission)
+• Financial/banking regulations (Central Bank instructions, compliance guidelines)
+• Government regulations, laws, legal standards
+• ISO standards, quality management standards
+• Industry compliance frameworks
+→ USE THE REGULATORY SCHEMA (12 columns)
 
-{custom_columns_instruction}
+TYPE B - BUSINESS DOCUMENTS:
+• Invoices, receipts, purchase orders
+• Contracts, agreements, proposals
+• Product catalogs, price lists
+• Financial statements, reports
+→ USE DOCUMENT-APPROPRIATE SCHEMA (auto-detect columns)
 
-EXTRACTION REQUIREMENTS ({extraction_depth} depth):
-{depth_instructions}
+TYPE C - DATA DOCUMENTS:
+• Forms, applications, surveys
+• Lists, inventories, manifests
+• Technical specifications
+• Research data, tables
+→ PRESERVE ORIGINAL STRUCTURE (extract as-is)
 
-CSV OUTPUT REQUIREMENTS:
-- First row MUST be descriptive column headers
-- Each row represents one record/item/entry
-- Use proper CSV escaping (quotes around text with commas)
-- EXTRACT EVERY PIECE OF MEANINGFUL DATA
-- If document has tables: each table row becomes a CSV row
-- If document has lists: each list item becomes a row
-- If document has repeated structures: each instance is a row
-- Include IDs, names, descriptions, quantities, amounts, dates, statuses
-- Preserve hierarchical relationships (use Category/Section columns)
-- Don't skip anything - if it's data, extract it
+═══════════════════════════════════════════════════════════════════════════════
+REGULATORY SCHEMA (For Type A documents ONLY)
+═══════════════════════════════════════════════════════════════════════════════
 
-DOCUMENT-SPECIFIC GUIDANCE:
-- Invoices: Item, Description, Quantity, Unit Price, Amount, Tax, Vendor, Date, Invoice#
-- Contracts: Section, Clause, Party, Obligation, Date, Term, Condition
-- Resumes: Section, Company/School, Role/Degree, Date Range, Details, Location
-- Reports: Section, Finding, Metric, Value, Recommendation, Priority
-- Forms: Field Name, Field Value, Section, Required, Notes
+Use this EXACT 12-column schema for regulatory/compliance documents:
+1. # - Sequential row number
+2. Regulation - Source document name
+3. Chapter - Main chapter/section title
+4. Section - Sub-section (use "-" if none)
+5. Article - Article code or title (use "-" if just a section description)
+6. Article_Description - COMPLETE requirement text
+7. Risk - Brief risk summary (derive from content, or "-")
+8. Risk_Description - Detailed risk explanation (derive from content, or "-")
+9. Compliance_Risk - Category: Regulatory, Operational, Patient Safety, Financial (or "-")
+10. Mandate_Control - Required control measure (or "-")
+11. Control_Description - How to demonstrate compliance (or "-")
+12. Mandate_Control_Category - Control type: Policy, Procedure, Documentation, Training (or "-")
 
-{supervisor_guidance}
+═══════════════════════════════════════════════════════════════════════════════
+EXTRACTION RULES (For Regulatory Documents)
+═══════════════════════════════════════════════════════════════════════════════
 
-OUTPUT FORMAT: {to_format}
-Output ONLY the structured data. No explanations, no markdown code blocks."""
+RULE 1: ONE ROW PER LOGICAL UNIT
+• Each article, requirement, or distinct section = ONE row
+• Don't combine unrelated requirements
 
-    DEPTH_BASIC = """- Extract main entities and primary data points
-- Focus on clearly visible/stated information
-- Create 5-10 columns of essential data
-- One row per main item/entry"""
+RULE 2: PRESERVE HIERARCHY
+• Keep Regulation/Chapter/Section consistent for all nested items
+• Use "-" for empty hierarchy levels
 
-    DEPTH_DETAILED = """- Extract main and secondary entities
-- Include context, relationships, and metadata
-- Create 10-20 columns covering all major aspects
-- Capture dates, amounts, names, descriptions
-- Extract data from tables and lists
-- Include category/section information"""
+RULE 3: COMPLETE DESCRIPTIONS
+• Include ALL text: statements, rationales, consequences, measurable elements
+• Don't summarize - preserve full content
 
-    DEPTH_COMPREHENSIVE = """- Extract ABSOLUTELY EVERYTHING from the document
-- Create as many columns as needed (20+ when data supports)
-- EVERY table becomes rows with all columns preserved
-- EVERY list item becomes a row with full details
-- EVERY form field is captured
-- Include: IDs, names, descriptions, categories, types, dates, amounts, quantities, units, statuses, notes, references
-- Capture relationships (parent-child, belongs-to, related-to)
-- Extract metadata: document date, author, version, source
-- Include calculated fields if present (totals, averages, percentages)
-- Preserve hierarchy using Category/Section/Subsection columns
-- If multiple entities: each gets its own row with all attributes
-- Nothing should be omitted - if it's in the document, extract it"""
+RULE 4: DERIVE RISK FIELDS
+• Analyze the requirement and derive what could go wrong
+• Categorize appropriately (Regulatory, Operational, etc.)
+• If unclear or not applicable, use "-"
+
+RULE 5: SMART CONTROL DERIVATION
+• Based on the requirement, suggest appropriate controls
+• Or use "-" if not obvious
+
+═══════════════════════════════════════════════════════════════════════════════
+EXAMPLES BY DOCUMENT TYPE
+═══════════════════════════════════════════════════════════════════════════════
+
+EXAMPLE A: FINANCIAL/BANKING REGULATIONS
+Document: "Instructions on Advertising Controls for Products, Services, and Prizes Offered by Financial and Banking Service Providers"
+
+OUTPUT:
+#,Regulation,Chapter,Section,Article,Article_Description,Risk,Risk_Description,Compliance_Risk,Mandate_Control,Control_Description,Mandate_Control_Category
+1,"Instructions on Advertising Controls for Products, Services, and Prizes Offered by Financial and Banking Service Providers","Scope of Application","-","-","Applies to all licensed banks, finance companies, payment and electronic money transfer companies, exchange companies, and insurance companies, effective 30 days from issuance.","-","-","-","-","-","-"
+2,"Instructions on Advertising Controls for Products, Services, and Prizes Offered by Financial and Banking Service Providers","Definitions","-","-","Definitions for terms such as Service Provider, Product/Service, Client, Advertisement Types (Direct, Indirect, Readable, Audible, Electronic).","-","-","-","-","-","-"
+3,"Instructions on Advertising Controls for Products, Services, and Prizes Offered by Financial and Banking Service Providers","Advertising Requirements","-","-","Advertisements must include specific information such as name, fees, features, inquiry methods, and target audience. Must be clear, accurate, and not misleading.","Misleading advertisements","Failure to provide clear and accurate information may mislead clients and violate transparency principles.","Regulatory","Develop clear advertising policies","Ensure all advertisements meet the specified requirements and are reviewed for compliance.","Policy"
+4,"Instructions on Advertising Controls for Products, Services, and Prizes Offered by Financial and Banking Service Providers","Prohibited Practices","-","-","Prohibits misleading promises, unauthorized use of logos, and deceptive advertising practices.","Deceptive advertising","Using misleading or unauthorized content can lead to regulatory penalties and loss of consumer trust.","Regulatory","Implement strict review processes","Verify all advertising content for compliance with regulations and authenticity.","Procedure"
+5,"Instructions on Advertising Controls for Products, Services, and Prizes Offered by Financial and Banking Service Providers","Penalties and Fines","-","-","Central Bank may impose penalties for non-compliance with these instructions.","Regulatory penalties","Non-compliance can result in fines and other regulatory actions.","Regulatory","Ensure compliance with all instructions","Regularly review compliance with advertising instructions to avoid penalties.","Procedure"
+
+---
+
+EXAMPLE B: HEALTHCARE ACCREDITATION (JCI)
+Document: "JCI-Hospital 8th Edition Standards Manual"
+
+OUTPUT:
+#,Regulation,Chapter,Section,Article,Article_Description,Risk,Risk_Description,Compliance_Risk,Mandate_Control,Control_Description,Mandate_Control_Category
+1,"JCI-Hospital 8th Edition Standards Manual","Accreditation Participation Requirements (APR)","Overview","-","This section consists of specific requirements for participation in the Joint Commission International (JCI) accreditation process and for maintaining an accreditation award. For a hospital seeking accreditation for the first time, compliance with many of the APRs is assessed during the initial survey.","-","-","-","-","-","-"
+2,"JCI-Hospital 8th Edition Standards Manual","Accreditation Participation Requirements (APR)","Requirements, Rationales, and Measurable Elements","APR.01.00","The hospital submits information to Joint Commission International (JCI) as required. Rationale for APR.01.00: There are many points in the accreditation process at which data and information are required. Consequences of Noncompliance: If the hospital consistently fails to meet the requirements, the hospital will be required to undergo a follow-up survey. Measurable Elements: 1. The hospital meets all requirements for timely submissions of data and information to JCI.","Late data submission","Failure to meet timely submission requirements could result in follow-up survey and accreditation decision change.","Regulatory","Establish submission tracking system","Document all JCI submissions with dates and confirmations.","Procedure"
+3,"JCI-Hospital 8th Edition Standards Manual","Section II: Patient-Centered Standards","Admission to the Hospital","ACC.01.00","Patients admitted to the hospital are screened to identify if their health care needs match the hospital's mission, scope of care, and resources. Intent: Matching patient needs with hospital capabilities through screening. Measurable Elements: 1. Screening results determine patient admission. 2. Patients outside scope are stabilized prior to transfer.","Patient-hospital mismatch","Failure to properly screen patients could result in inappropriate admissions or unsafe transfers.","Operational","Implement admission screening protocol","Develop criteria for patient screening at all entry points.","Procedure"
+
+---
+
+EXAMPLE C: INVOICE/BUSINESS DOCUMENT (Non-regulatory - Use appropriate columns)
+Document: Invoice
+
+OUTPUT:
+Invoice_Number,Date,Vendor,Item,Description,Quantity,Unit_Price,Total,Tax,Grand_Total
+"INV-2024-001","2024-01-15","ABC Supplies Inc","PROD-001","Office Paper A4",10,25.00,250.00,25.00,275.00
+"INV-2024-001","2024-01-15","ABC Supplies Inc","PROD-002","Printer Ink Black",5,45.00,225.00,22.50,247.50
+
+{custom_instructions}
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT FORMAT: {output_format}
+═══════════════════════════════════════════════════════════════════════════════
+
+{format_instructions}
+
+CRITICAL: Output ONLY the {output_format} data. No explanations, no markdown code blocks."""
+
+    CSV_FORMAT_INSTRUCTIONS = """CSV Requirements:
+- For REGULATORY documents use: #,Regulation,Chapter,Section,Article,Article_Description,Risk,Risk_Description,Compliance_Risk,Mandate_Control,Control_Description,Mandate_Control_Category
+- For OTHER documents: Use appropriate columns based on document content
+- Use double quotes around ALL text fields
+- Preserve full text in descriptions
+- Empty/unknown fields: Use "-" 
+- One logical unit per row
+- Escape internal quotes with double-quotes ("")"""
+
+    JSON_FORMAT_INSTRUCTIONS = """JSON Requirements:
+- For REGULATORY documents use keys: id, regulation, chapter, section, article, article_description, risk, risk_description, compliance_risk, mandate_control, control_description, mandate_control_category
+- For OTHER documents: Use appropriate keys based on document content
+- Preserve full text in descriptions
+- Empty values as "-"
+- Properly escape special characters"""
 
     async def execute(
         self,
@@ -120,163 +170,171 @@ Output ONLY the structured data. No explanations, no markdown code blocks."""
         model: Optional[str] = None,
     ) -> AgentResult:
         """
-        Transform data with deep document analysis.
+        Execute professional document extraction.
         
         Args:
-            user_message: Original query (for context)
-            context: Contains 'input_content' to transform
-            settings: Contains 'fromFormat', 'toFormat', 'useAdvancedModel', 
-                     'customColumns', 'extractionDepth'
+            user_message: Original query
+            context: Contains document content to transform
+            settings: Extraction settings
             model: Model override
             
         Returns:
-            AgentResult with comprehensively extracted/transformed data
+            AgentResult with extracted structured data
         """
         settings = settings or {}
-        from_format = settings.get("fromFormat", "text")
-        to_format = settings.get("toFormat", "csv")
-        use_advanced = settings.get("useAdvancedModel", True)
+        output_format = settings.get("toFormat", "csv").upper()
         custom_columns = settings.get("customColumns", "")
-        extraction_depth = settings.get("extractionDepth", "comprehensive")
         
-        # Get spreadsheet node settings from context if available
+        # Get spreadsheet settings if available
         spreadsheet_settings = context.get("spreadsheet_settings", {})
         if not custom_columns and spreadsheet_settings:
             custom_columns = spreadsheet_settings.get("customColumns", "")
-        if spreadsheet_settings.get("extractionDepth"):
-            extraction_depth = spreadsheet_settings.get("extractionDepth", extraction_depth)
         
-        # Get content to transform - check multiple sources with logging
-        content_to_transform = context.get("input_content")
-        source = "input_content" if content_to_transform else None
+        # Find content to transform
+        content = self._get_content(context)
         
-        if not content_to_transform:
-            content_to_transform = context.get("uploaded_file_content")
-            source = "uploaded_file_content" if content_to_transform else None
-            
-        if not content_to_transform:
-            content_to_transform = context.get("final_answer")
-            source = "final_answer" if content_to_transform else None
-            
-        if not content_to_transform:
-            snippets = context.get("context_snippets", [])
-            content_to_transform = "\n\n".join(snippets) if snippets else ""
-            source = "context_snippets" if content_to_transform else None
-            
-        if not content_to_transform:
-            content_to_transform = context.get("user_message", "")
-            source = "user_message" if content_to_transform else None
-        
-        print(f"[TRANSFORMER] Content source: {source}")
-        print(f"[TRANSFORMER] Content length: {len(content_to_transform) if content_to_transform else 0}")
-        print(f"[TRANSFORMER] Content preview: {content_to_transform[:500] if content_to_transform else 'EMPTY'}...")
-        
-        if not content_to_transform:
+        if not content:
             return AgentResult(
                 agent=self.agent_id,
-                model="gpt-4o",
+                model="none",
                 action="transform",
-                content="No content available to transform.",
+                content="No content available for extraction.",
                 success=False,
                 metadata={"error": "No input content"},
             )
         
-        # Determine model based on settings
-        actual_model = "gpt-4o" if use_advanced else "gpt-4o-mini"
-        if model:
-            actual_model = model
+        print(f"[TRANSFORMER] Content length: {len(content)}")
+        print(f"[TRANSFORMER] Output format: {output_format}")
         
-        # Build custom columns instruction
+        # Build custom instructions
+        custom_instructions = ""
         if custom_columns and custom_columns.strip():
-            columns_list = [c.strip() for c in custom_columns.split(",") if c.strip()]
-            custom_columns_instruction = f"""
-REQUIRED COLUMNS (user specified):
-The output MUST include these columns: {', '.join(columns_list)}
-You may add additional relevant columns, but these must be present."""
-        else:
-            custom_columns_instruction = """
-COLUMNS: Determine the optimal column structure based on the document content.
-Include all relevant data dimensions. Aim for comprehensive coverage."""
+            columns = [c.strip() for c in custom_columns.split(",") if c.strip()]
+            custom_instructions = f"""
+REQUIRED COLUMNS (User Specified):
+The extraction MUST include these columns: {', '.join(columns)}
+Map document fields to these columns. Add supplementary columns if needed."""
         
-        # Get depth-specific instructions
-        if extraction_depth == "basic":
-            depth_instructions = self.DEPTH_BASIC
-        elif extraction_depth == "detailed":
-            depth_instructions = self.DEPTH_DETAILED
+        # Get format-specific instructions
+        if output_format == "JSON":
+            format_instructions = self.JSON_FORMAT_INSTRUCTIONS
         else:
-            depth_instructions = self.DEPTH_COMPREHENSIVE
+            format_instructions = self.CSV_FORMAT_INSTRUCTIONS
         
-        # Get supervisor guidance
+        # Add supervisor guidance if available
         supervisor_guidance = context.get("supervisor_guidance", "")
         if supervisor_guidance:
-            supervisor_guidance = f"\nADDITIONAL GUIDANCE:\n{supervisor_guidance}"
+            custom_instructions += f"\n\nADDITIONAL CONTEXT:\n{supervisor_guidance}"
         
-        system_prompt = self._build_system_prompt(
-            self.SYSTEM_PROMPT_COMPREHENSIVE,
-            to_format=to_format.upper(),
-            custom_columns_instruction=custom_columns_instruction,
-            extraction_depth=extraction_depth,
-            depth_instructions=depth_instructions,
-            supervisor_guidance=supervisor_guidance,
+        # Build system prompt
+        system_prompt = self.SYSTEM_PROMPT.format(
+            output_format=output_format,
+            format_instructions=format_instructions,
+            custom_instructions=custom_instructions,
         )
         
-        # For large documents, chunk the content
-        max_content_length = 25000 if use_advanced else 10000
-        if len(content_to_transform) > max_content_length:
-            content_to_transform = content_to_transform[:max_content_length] + "\n\n[Document truncated for processing...]"
+        # Truncate very long documents
+        max_length = 30000
+        if len(content) > max_length:
+            content = content[:max_length] + "\n\n[... Document truncated for processing ...]"
         
-        user_prompt = f"""Analyze this {from_format.upper()} document and extract ALL structured data into {to_format.upper()} format:
+        # Build user prompt with clear structure
+        user_prompt = f"""Perform audit-grade extraction on the following document.
 
-=== DOCUMENT START ===
-{content_to_transform}
-=== DOCUMENT END ===
+══════════════════════════════════════════════════════════════════════
+DOCUMENT TO EXTRACT
+══════════════════════════════════════════════════════════════════════
 
-Perform deep analysis and create a comprehensive {to_format.upper()} output with all extractable data."""
-        
+{content}
+
+══════════════════════════════════════════════════════════════════════
+EXTRACTION TASK
+══════════════════════════════════════════════════════════════════════
+
+1. Classify this document type
+2. Identify the appropriate schema
+3. Extract ALL structured data
+4. Output as {output_format}
+
+Begin extraction now. Output {output_format} only, no explanations."""
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
         
-        # Use higher max_tokens for comprehensive extraction
-        max_tokens = 4000 if extraction_depth == "comprehensive" else 2000
+        # Use GPT-4o for best extraction quality
+        actual_model = model or "gpt-4o"
         
-        transformed = await self._chat(
+        result = await self._chat(
             messages=messages,
             model=actual_model,
-            temperature=0.1,
-            max_tokens=max_tokens,
+            temperature=0.1,  # Low temperature for consistent extraction
+            max_tokens=4096,
         )
         
-        # Clean up response (remove markdown code blocks if present)
-        if transformed.startswith("```"):
-            lines = transformed.split("\n")
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            transformed = "\n".join(lines)
-        
-        # Clean any trailing whitespace
-        transformed = transformed.strip()
+        # Clean up result
+        result = self._clean_output(result)
         
         return AgentResult(
             agent=self.agent_id,
             model=actual_model,
             action="transform",
-            content=transformed,
+            content=result,
             metadata={
-                "from_format": from_format,
-                "to_format": to_format,
-                "extraction_depth": extraction_depth,
-                "used_advanced_model": use_advanced,
-                "original_length": len(content_to_transform),
-                "transformed_length": len(transformed),
-                "custom_columns": custom_columns if custom_columns else "auto-detected",
+                "output_format": output_format,
+                "input_length": len(content),
+                "output_length": len(result),
+                "custom_columns": custom_columns or "auto-detected",
             },
             context_updates={
-                "transformed_content": transformed,
-                "input_content": transformed,
-                "final_answer": transformed,
+                "transformed_content": result,
+                "input_content": result,
+                "final_answer": result,
             },
         )
+    
+    def _get_content(self, context: Dict[str, Any]) -> str:
+        """Get content to transform from context, checking multiple sources."""
+        sources = [
+            "input_content",
+            "uploaded_file_content", 
+            "final_answer",
+        ]
+        
+        for source in sources:
+            content = context.get(source)
+            if content and len(content.strip()) > 10:
+                print(f"[TRANSFORMER] Using content from: {source}")
+                return content
+        
+        # Check context snippets
+        snippets = context.get("context_snippets", [])
+        if snippets:
+            print(f"[TRANSFORMER] Using content from: context_snippets")
+            return "\n\n".join(snippets)
+        
+        # Last resort: user message
+        user_msg = context.get("user_message", "")
+        if user_msg:
+            print(f"[TRANSFORMER] Using content from: user_message")
+            return user_msg
+        
+        return ""
+    
+    def _clean_output(self, output: str) -> str:
+        """Clean up LLM output, removing markdown and extra formatting."""
+        output = output.strip()
+        
+        # Remove markdown code blocks
+        if output.startswith("```"):
+            lines = output.split("\n")
+            # Remove first line (```csv or ```json)
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            # Remove last line if it's closing ```
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            output = "\n".join(lines)
+        
+        return output.strip()

@@ -29,7 +29,7 @@
       "type": "workflow",
       "position": {
         "x": 330,
-        "y": 45
+        "y": 135
       },
       "data": {
         "nodeType": "supervisor",
@@ -46,7 +46,7 @@
       "type": "workflow",
       "position": {
         "x": 600,
-        "y": -30
+        "y": 225
       },
       "data": {
         "nodeType": "transformer",
@@ -62,7 +62,7 @@
       "type": "workflow",
       "position": {
         "x": 870,
-        "y": -135
+        "y": 135
       },
       "data": {
         "nodeType": "spreadsheet",
@@ -89,5 +89,5 @@
     }
   ],
   "created_at": "2026-01-07T12:21:04.900150Z",
-  "updated_at": "2026-01-07T12:21:04.900150Z"
+  "updated_at": "2026-01-09T10:17:00.173955Z"
 }

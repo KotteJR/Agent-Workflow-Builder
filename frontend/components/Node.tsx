@@ -36,12 +36,14 @@ export const WorkflowNode = memo(({ id, data, selected }: NodeProps<Node>) => {
     const Icon = nodeConfig.icon;
     const hasSettings = nodeConfig.hasSettings ?? false;
 
+    const isExecuting = nodeData.executionState?.isExecuting;
+
     return (
-        <div className="relative group">
+        <div className={`relative group ${isExecuting ? "node-executing" : ""}`}>
             {/* Delete Button - Visible on Hover/Selected */}
             <button
                 className={`
-                    absolute -top-2 -right-2 w-6 h-6 bg-white border border-gray-200
+                    absolute -top-3 -right-3 w-6 h-6 bg-white border border-gray-200
                     hover:text-red-500 hover:border-red-200 text-gray-400 rounded-full
                     flex items-center justify-center shadow-sm z-50
                     transition-all duration-200 scale-0 group-hover:scale-100 ${selected ? "scale-100" : ""}
@@ -55,7 +57,7 @@ export const WorkflowNode = memo(({ id, data, selected }: NodeProps<Node>) => {
             {hasSettings && (
                 <button
                     className={`
-                        absolute -top-2 -left-2 w-6 h-6 bg-white border border-gray-200
+                        absolute -top-3 -left-3 w-6 h-6 bg-white border border-gray-200
                         hover:text-blue-500 hover:border-blue-200 text-gray-400 rounded-full
                         flex items-center justify-center shadow-sm z-50
                         transition-all duration-200 scale-0 group-hover:scale-100 ${selected ? "scale-100" : ""}
@@ -76,37 +78,28 @@ export const WorkflowNode = memo(({ id, data, selected }: NodeProps<Node>) => {
                 />
             )}
 
+            {/* Main Node Card */}
             <div
                 className={`
-                    bg-white rounded-lg shadow-sm border-2 min-w-[220px] max-w-[320px]
-                    transition-all duration-300 relative overflow-hidden
-                    ${selected ? "border-blue-400 shadow-lg" : "border-gray-200"}
-                    hover:shadow-md hover:border-gray-300
-                    ${hasSettings ? "cursor-pointer" : ""}
-                    ${nodeData.executionState?.isExecuting ? "cursor-pointer border-transparent node-executing" : ""}
+                    bg-white rounded-xl min-w-[200px] max-w-[300px]
+                    transition-all duration-200
+                    ${selected ? "shadow-lg ring-2 ring-blue-400" : "shadow-md"}
+                    ${!isExecuting ? "border border-gray-200" : ""}
+                    ${hasSettings ? "cursor-pointer hover:shadow-lg" : ""}
                 `}
                 onDoubleClick={hasSettings ? handleSettingsClick : undefined}
-                onClick={nodeData.executionState?.isExecuting && nodeData.onExecutionClick ? () => nodeData.onExecutionClick!(id) : undefined}
+                onClick={isExecuting && nodeData.onExecutionClick ? () => nodeData.onExecutionClick!(id) : undefined}
             >
-                {/* Header - Drag Handle */}
-                <div className="drag-handle cursor-grab active:cursor-grabbing px-4 py-3 border-b border-gray-100 flex items-center gap-3 relative z-10 bg-white rounded-t-lg">
-                    <div
-                        className={`w-9 h-9 rounded-lg ${nodeConfig.color} flex items-center justify-center flex-shrink-0 border relative ${nodeData.executionState?.isExecuting ? "node-executing-indicator" : ""}`}
-                    >
+                {/* Single Clean Header */}
+                <div className="drag-handle cursor-grab active:cursor-grabbing px-4 py-3 flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl ${nodeConfig.color} flex items-center justify-center flex-shrink-0`}>
                         <Icon className="w-5 h-5" />
-                        {/* Executing ping indicator */}
-                        {nodeData.executionState?.isExecuting && (
-                            <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
-                            </span>
-                        )}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-900 truncate">
+                        <div className="text-sm font-semibold text-gray-900 truncate">
                             {nodeConfig.label}
                         </div>
-                        <div className="text-xs text-gray-500 capitalize">{nodeConfig.category}</div>
+                        <div className="text-xs text-gray-400 capitalize">{nodeConfig.category}</div>
                     </div>
                 </div>
 
@@ -129,7 +122,7 @@ export const WorkflowNode = memo(({ id, data, selected }: NodeProps<Node>) => {
                 )}
 
                 {/* Output Node Content */}
-                {(nodeData.nodeType === "response" || nodeData.nodeType === "spreadsheet") && (
+                {(nodeData.nodeType === "response" || nodeData.nodeType === "spreadsheet" || nodeData.nodeType === "code_viewer") && (
                     <OutputViewer
                         nodeId={id}
                         nodeType={nodeData.nodeType}
@@ -276,6 +269,21 @@ const UploadEditor = memo(({ nodeId, uploadedFiles, uploadInstruction, onDataCha
                             console.error("Failed to read Word file:", err);
                         }
                     }
+                    // For images (PNG, JPG, etc.), read as base64
+                    else if (file.type.startsWith("image/")) {
+                        try {
+                            const arrayBuffer = await file.arrayBuffer();
+                            const base64 = btoa(
+                                new Uint8Array(arrayBuffer).reduce(
+                                    (data, byte) => data + String.fromCharCode(byte),
+                                    ''
+                                )
+                            );
+                            content = `__IMAGE_BASE64__${file.type}__${base64}`;
+                        } catch (err) {
+                            console.error("Failed to read image file:", err);
+                        }
+                    }
                     
                     return {
                         name: file.name,
@@ -316,7 +324,7 @@ const UploadEditor = memo(({ nodeId, uploadedFiles, uploadInstruction, onDataCha
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept=".pdf,.txt,.csv,.md,.doc,.docx"
+                accept=".pdf,.txt,.csv,.md,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp"
                 onChange={handleFileSelect}
                 className="hidden"
             />
@@ -398,8 +406,22 @@ const OutputViewer = memo(({ nodeId, nodeType, outputData, onViewClick }: Output
         if (!outputData?.content) return;
         
         const isSpreadsheet = nodeType === "spreadsheet" || outputData.format === "csv" || outputData.format === "spreadsheet";
-        const extension = isSpreadsheet ? "csv" : "txt";
-        const mimeType = isSpreadsheet ? "text/csv" : "text/plain";
+        const isCode = nodeType === "code_viewer" || outputData.format === "html" || outputData.format === "presentation" || outputData.format === "tsx";
+        const isHtml = outputData.content?.trim().startsWith("<!DOCTYPE") || outputData.content?.trim().startsWith("<html");
+        
+        let extension = "txt";
+        let mimeType = "text/plain";
+        
+        if (isSpreadsheet) {
+            extension = "csv";
+            mimeType = "text/csv";
+        } else if (isHtml || outputData.format === "html" || outputData.format === "presentation") {
+            extension = "html";
+            mimeType = "text/html";
+        } else if (outputData.format === "tsx") {
+            extension = "tsx";
+            mimeType = "text/typescript";
+        }
         
         const blob = new Blob([outputData.content], { type: mimeType });
         const url = URL.createObjectURL(blob);
@@ -455,7 +477,7 @@ const OutputViewer = memo(({ nodeId, nodeType, outputData, onViewClick }: Output
                             className="flex-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
                         >
                             <HiEye className="w-3.5 h-3.5" />
-                            {hasImages ? "View Image" : "View Full Output"}
+                            {hasImages ? "View Image" : nodeType === "code_viewer" ? "View Code" : "View Full Output"}
                         </button>
                         {!hasImages && (
                             <button
@@ -463,7 +485,7 @@ const OutputViewer = memo(({ nodeId, nodeType, outputData, onViewClick }: Output
                                 className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5"
                             >
                                 <HiDocumentArrowDown className="w-3.5 h-3.5" />
-                                {nodeType === "spreadsheet" ? "CSV" : "Download"}
+                                {nodeType === "spreadsheet" ? "CSV" : nodeType === "code_viewer" ? "HTML" : "Download"}
                             </button>
                         )}
                     </div>

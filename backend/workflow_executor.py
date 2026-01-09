@@ -36,7 +36,6 @@ else:
     import retrieval
     print("[WORKFLOW] Using file-based retrieval")
 
-from demo_handler import is_demo_workflow
 from workflow_logger import debugger, workflow_logger
 
 
@@ -58,7 +57,7 @@ AGENT_REGISTRY = {
 INPUT_NODE_TYPES = {"prompt", "upload"}
 
 # Output node types (don't require agents)
-OUTPUT_NODE_TYPES = {"response", "spreadsheet"}
+OUTPUT_NODE_TYPES = {"response", "spreadsheet", "code_viewer"}
 
 
 def topological_sort(nodes: List[str], edges: List[Dict[str, str]]) -> List[str]:
@@ -217,45 +216,6 @@ async def execute_workflow(
                 has_spreadsheet_output = True
                 print(f"[WORKFLOW] Found spreadsheet settings: {spreadsheet_settings}")
                 break
-    
-    # === DEMO MODE CHECK ===
-    # Check if this is a demo workflow with premade output
-    uploaded_files = []
-    for node_id in input_nodes:
-        node = node_map.get(node_id)
-        if node:
-            node_data = node.get("data", {})
-            if node_data.get("nodeType") == "upload":
-                uploaded_files = node_data.get("uploadedFiles", [])
-                break
-    
-    demo_output = is_demo_workflow(uploaded_files, has_spreadsheet_output)
-    if demo_output:
-        print(f"[DEMO] Using premade demo output for this workflow")
-        workflow_latency = round((time.time() - workflow_start) * 1000, 2)
-        
-        # Yield demo execution events
-        yield _sse_event("agent_start", {"agent": "demo", "status": "working"})
-        yield _sse_event("agent_complete", {
-            "agent": "demo",
-            "step": {
-                "agent": "demo",
-                "model": "demo-mode",
-                "action": "demo_extraction",
-                "content": "Using optimized demo extraction for this document",
-            }
-        })
-        
-        # Return the premade output
-        yield _sse_event("done", {
-            "answer": demo_output,
-            "tool_outputs": {"images": [], "calculations": [], "web_results": [], "docs": []},
-            "trace": {"steps": [{"agent": "demo", "model": "demo-mode", "action": "demo_extraction", "content": demo_output}]},
-            "latency_ms": workflow_latency,
-            "output_format": "spreadsheet",
-        })
-        return
-    # === END DEMO MODE CHECK ===
     
     # Execution context - shared state between nodes
     context: Dict[str, Any] = {
@@ -502,6 +462,24 @@ async def execute_workflow(
                             "action": "spreadsheet_output",
                             "content": final_content,
                             "format": "spreadsheet",
+                        }
+                    })
+                elif node_type == "code_viewer":
+                    # Get code content and language from formatting agent
+                    code_content = context.get("code_content") or context.get("formatted_content") or final_content
+                    code_language = context.get("code_language", "html")
+                    output_format = context.get("output_format", code_language)
+                    
+                    context["output_format"] = output_format
+                    yield _sse_event("agent_complete", {
+                        "agent": node_id,
+                        "step": {
+                            "agent": node_type,
+                            "model": "none",
+                            "action": "code_output",
+                            "content": code_content,
+                            "format": output_format,
+                            "language": code_language,
                         }
                     })
                 else:

@@ -144,7 +144,7 @@ export interface SourceDocument {
 
 export interface NodeOutputData {
     content: string;
-    format?: "text" | "csv" | "json" | "spreadsheet" | "image";
+    format?: "text" | "csv" | "json" | "spreadsheet" | "image" | "html" | "presentation" | "tsx" | "react" | "xml" | "yaml" | "markdown";
     timestamp: number;
     images?: Array<{ prompt: string; url: string; style: string }>;
     sources?: SourceDocument[];

@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useMemo, useState } from "react";
-import { HiXMark, HiDocumentArrowDown, HiClipboardDocument, HiTableCells, HiCodeBracket, HiDocumentText, HiChevronDown, HiChevronUp } from "react-icons/hi2";
+import { HiXMark, HiDocumentArrowDown, HiClipboardDocument, HiTableCells, HiCodeBracket, HiDocumentText, HiChevronDown, HiChevronUp, HiPlay, HiArrowsPointingOut } from "react-icons/hi2";
 import type { NodeOutputData, SourceDocument } from "@/lib/types";
 
 interface OutputViewModalProps {
@@ -28,7 +28,7 @@ const SourceModal = memo(function SourceModal({
                         <h3 className="font-semibold text-gray-900">{source.title}</h3>
                         {source.score !== undefined && (
                             <span className="text-xs text-blue-600 font-medium">
-                                {Math.round(source.score * 100)}% relevance
+                                {Math.round(source.score)}% relevance
                             </span>
                         )}
                     </div>
@@ -102,7 +102,7 @@ const SourcesSection = memo(function SourcesSection({
                     <div className="mt-3 space-y-2">
                         {sources.map((source, index) => {
                             const relevancePercent = source.score !== undefined 
-                                ? Math.round(source.score * 100) 
+                                ? Math.round(source.score) 
                                 : null;
                             
                             // Color based on relevance
@@ -203,12 +203,22 @@ export const OutputViewModal = memo(function OutputViewModal({
     nodeType,
     outputData,
 }: OutputViewModalProps) {
-    const [viewMode, setViewMode] = useState<'table' | 'raw'>('table');
+    // Default to preview for code viewer, table for spreadsheet, raw for others
+    const getDefaultViewMode = () => {
+        if (nodeType === "code_viewer") return 'preview';
+        if (nodeType === "spreadsheet") return 'table';
+        return 'raw';
+    };
+    const [viewMode, setViewMode] = useState<'table' | 'raw' | 'preview'>(getDefaultViewMode());
+    const [isFullscreen, setIsFullscreen] = useState(false);
     
     if (!isOpen) return null;
 
     const hasImages = outputData?.images && outputData.images.length > 0;
     const isSpreadsheet = nodeType === "spreadsheet" || outputData?.format === "csv" || outputData?.format === "spreadsheet";
+    const isCodeViewer = nodeType === "code_viewer" || outputData?.format === "html" || outputData?.format === "presentation" || outputData?.format === "tsx";
+    const isHtmlContent = outputData?.content?.trim().startsWith("<!DOCTYPE") || outputData?.content?.trim().startsWith("<html") || outputData?.content?.includes("<body");
+    const canPreview = isCodeViewer && isHtmlContent;
 
     // Parse CSV data for table view
     const parsedData = useMemo(() => {
@@ -223,8 +233,22 @@ export const OutputViewModal = memo(function OutputViewModal({
     const handleDownload = useCallback(() => {
         if (!outputData?.content) return;
         
-        const extension = isSpreadsheet ? "csv" : "txt";
-        const mimeType = isSpreadsheet ? "text/csv" : "text/plain";
+        let extension = "txt";
+        let mimeType = "text/plain";
+        
+        if (isSpreadsheet) {
+            extension = "csv";
+            mimeType = "text/csv";
+        } else if (isHtmlContent || outputData?.format === "html" || outputData?.format === "presentation") {
+            extension = "html";
+            mimeType = "text/html";
+        } else if (outputData?.format === "tsx") {
+            extension = "tsx";
+            mimeType = "text/typescript";
+        } else if (outputData?.format === "json") {
+            extension = "json";
+            mimeType = "application/json";
+        }
         
         const blob = new Blob([outputData.content], { type: mimeType });
         const url = URL.createObjectURL(blob);
@@ -235,7 +259,7 @@ export const OutputViewModal = memo(function OutputViewModal({
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    }, [outputData, isSpreadsheet]);
+    }, [outputData, isSpreadsheet, isHtmlContent]);
 
     const handleDownloadImage = useCallback((imageUrl: string, index: number) => {
         const a = document.createElement("a");
@@ -261,7 +285,14 @@ export const OutputViewModal = memo(function OutputViewModal({
         return new Date(ts).toLocaleString();
     };
 
-    const title = hasImages ? "Generated Image" : (nodeType === "spreadsheet" ? "Spreadsheet Output" : "Workflow Output");
+    const getTitle = () => {
+        if (hasImages) return "Generated Image";
+        if (nodeType === "spreadsheet") return "Spreadsheet Output";
+        if (nodeType === "code_viewer") return "Code Viewer";
+        if (isHtmlContent) return "Generated Presentation";
+        return "Workflow Output";
+    };
+    const title = getTitle();
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
@@ -277,8 +308,38 @@ export const OutputViewModal = memo(function OutputViewModal({
                     <div className="flex items-center gap-2">
                         {!hasImages && (
                             <>
+                                {/* View mode toggle for code viewer */}
+                                {canPreview && (
+                                    <div className="flex items-center bg-gray-100 rounded-lg p-0.5 mr-2">
+                                        <button
+                                            onClick={() => setViewMode('preview')}
+                                            className={`px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1 ${
+                                                viewMode === 'preview'
+                                                    ? 'bg-white shadow-sm text-gray-900'
+                                                    : 'text-gray-600 hover:text-gray-900'
+                                            }`}
+                                            title="Live preview"
+                                        >
+                                            <HiPlay className="w-4 h-4" />
+                                            Preview
+                                        </button>
+                                        <button
+                                            onClick={() => setViewMode('raw')}
+                                            className={`px-2.5 py-1 text-sm rounded-md transition-colors flex items-center gap-1 ${
+                                                viewMode === 'raw'
+                                                    ? 'bg-white shadow-sm text-gray-900'
+                                                    : 'text-gray-600 hover:text-gray-900'
+                                            }`}
+                                            title="View code"
+                                        >
+                                            <HiCodeBracket className="w-4 h-4" />
+                                            Code
+                                        </button>
+                                    </div>
+                                )}
+                                
                                 {/* View mode toggle for spreadsheets */}
-                                {isSpreadsheet && parsedData && (
+                                {isSpreadsheet && parsedData && !canPreview && (
                                     <div className="flex items-center bg-gray-100 rounded-lg p-0.5 mr-2">
                                         <button
                                             onClick={() => setViewMode('table')}
@@ -305,6 +366,25 @@ export const OutputViewModal = memo(function OutputViewModal({
                                             Raw
                                         </button>
                                     </div>
+                                )}
+                                
+                                {/* Fullscreen button for preview */}
+                                {canPreview && (
+                                    <button
+                                        onClick={() => {
+                                            // Open in new window
+                                            const newWindow = window.open('', '_blank');
+                                            if (newWindow) {
+                                                newWindow.document.write(outputData?.content || '');
+                                                newWindow.document.close();
+                                            }
+                                        }}
+                                        className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1.5 mr-1"
+                                        title="Open in new window"
+                                    >
+                                        <HiArrowsPointingOut className="w-4 h-4" />
+                                        Fullscreen
+                                    </button>
                                 )}
                                 <button
                                     onClick={handleCopyToClipboard}
@@ -397,8 +477,18 @@ export const OutputViewModal = memo(function OutputViewModal({
                                 {outputData.format || "text"}
                             </div>
                             
-                            {/* Table view for spreadsheets */}
-                            {isSpreadsheet && parsedData && viewMode === 'table' ? (
+                            {/* Preview mode for HTML content */}
+                            {canPreview && viewMode === 'preview' ? (
+                                <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                    <iframe
+                                        srcDoc={outputData.content}
+                                        className="w-full h-[60vh] border-0"
+                                        title="Preview"
+                                        sandbox="allow-scripts"
+                                    />
+                                </div>
+                            ) : /* Table view for spreadsheets */
+                            isSpreadsheet && parsedData && viewMode === 'table' ? (
                                 <div className="border border-gray-200 rounded-lg overflow-hidden">
                                     <div className="overflow-auto max-h-[60vh]">
                                         <table className="w-full text-sm">
@@ -436,6 +526,15 @@ export const OutputViewModal = memo(function OutputViewModal({
                                                 ))}
                                             </tbody>
                                         </table>
+                                    </div>
+                                </div>
+                            ) : isCodeViewer || isHtmlContent ? (
+                                /* Syntax-highlighted code view */
+                                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                    <div className="bg-gray-800 text-gray-100 p-4 overflow-auto max-h-[60vh]">
+                                        <pre className="text-sm font-mono whitespace-pre-wrap">
+                                            <code>{outputData.content}</code>
+                                        </pre>
                                     </div>
                                 </div>
                             ) : (

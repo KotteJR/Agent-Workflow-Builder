@@ -92,7 +92,7 @@ export const NodeSettingsPanel = memo(function NodeSettingsPanel({
                     {nodeType === "formatting" && (
                         <SelectSetting
                             label="Output Format"
-                            value={settings.outputFormat ?? "json"}
+                            value={settings.outputFormat ?? "html"}
                             onChange={(v) =>
                                 setSettings({
                                     ...settings,
@@ -100,14 +100,17 @@ export const NodeSettingsPanel = memo(function NodeSettingsPanel({
                                 })
                             }
                             options={[
-                                { value: "json", label: "JSON" },
-                                { value: "xml", label: "XML" },
-                                { value: "markdown", label: "Markdown" },
-                                { value: "html", label: "HTML" },
-                                { value: "csv", label: "CSV" },
-                                { value: "yaml", label: "YAML" },
+                                { value: "presentation", label: "📊 Presentation (HTML Slides)" },
+                                { value: "html", label: "🌐 HTML Document" },
+                                { value: "tsx", label: "⚛️ React/TSX Component" },
+                                { value: "react", label: "⚛️ React Component (JSX)" },
+                                { value: "json", label: "📋 JSON" },
+                                { value: "xml", label: "📄 XML" },
+                                { value: "markdown", label: "📝 Markdown" },
+                                { value: "csv", label: "📊 CSV" },
+                                { value: "yaml", label: "⚙️ YAML" },
                             ]}
-                            helpText="Select the desired output format"
+                            helpText="Select the desired output format. Use 'Presentation' for interactive slides."
                         />
                     )}
 

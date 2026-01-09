@@ -20,6 +20,7 @@ import {
     HiChartBar,
     HiArrowRightCircle,
     HiLanguage,
+    HiCodeBracket,
 } from "react-icons/hi2";
 
 export type NodeSettings = {
@@ -27,7 +28,7 @@ export type NodeSettings = {
     maxWords?: number; // Used by summarization and synthesis
     
     // Formatting settings
-    outputFormat?: "json" | "xml" | "markdown" | "html" | "csv" | "yaml";
+    outputFormat?: "json" | "xml" | "markdown" | "html" | "csv" | "yaml" | "presentation" | "tsx" | "react";
     
     // Conditional branch settings
     conditionPrompt?: string;
@@ -317,14 +318,22 @@ export const NODE_TYPES: NodeType[] = [
     },
     {
         id: "formatting",
-        label: "Formatting Agent",
+        label: "Code Agent",
         icon: HiChartBar,
         color: "bg-sky-100 text-sky-600 border-sky-200",
         category: "agent",
-        description: "Formats outputs to a specific format. Select the desired output format (JSON, XML, Markdown, HTML, CSV, YAML) in settings.",
+        description: "Generates production-quality code: HTML presentations, React/TSX components, styled documents, or data formats (JSON, XML, CSV). Creates complete, runnable code.",
         hasSettings: true,
         defaultSettings: {
-            outputFormat: "json"
+            outputFormat: "html"
         }
+    },
+    {
+        id: "code_viewer",
+        label: "Viewer",
+        icon: HiCodeBracket,
+        color: "bg-violet-100 text-violet-600 border-violet-200",
+        category: "output",
+        description: "Displays generated code with syntax highlighting and live preview. View HTML presentations, React components, and other generated code.",
     },
 ];

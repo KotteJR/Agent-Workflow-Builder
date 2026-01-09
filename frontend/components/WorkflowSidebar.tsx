@@ -129,7 +129,7 @@ export function WorkflowSidebar({
                                 className="h-12 w-auto"
                             />
                             <span className="px-2 py-0.5 text-[10px] font-semibold bg-indigo-100 text-indigo-600 rounded-full">
-                                v1.0
+                                BETA
                             </span>
                         </>
                     ) : (

@@ -27,8 +27,8 @@ NODE_DEFINITIONS = """
 
 2. **upload**
    - Category: Input
-   - Description: Upload files to be processed. Supports PDF (including scanned with OCR), CSV, TXT, MD, DOC, DOCX.
-   - Use when: User wants to convert documents, extract data from files, analyze uploaded content.
+   - Description: Upload files to be processed. Supports PDF (including scanned with OCR), CSV, TXT, MD, DOC, DOCX, PNG, JPG, JPEG, GIF, WEBP.
+   - Use when: User wants to convert documents, extract data from files, analyze uploaded content, or process images.
    - Settings: None (has file upload interface)
 
 ## AGENT NODES (Processing and Intelligence)
@@ -79,12 +79,13 @@ NODE_DEFINITIONS = """
    - Settings:
      * maxWords: number (default: 100)
 
-9. **formatting**
+9. **formatting** (Also called "Code Generator")
    - Category: Agent
-   - Description: Converts output to a specific structured format (JSON, XML, HTML, etc.).
-   - Use when: User needs output in a specific format, or data needs to be structured.
+   - Description: Generates production-quality code including HTML presentations with slides, React/TSX components, styled HTML documents, and data formats.
+   - Use when: User wants to create presentations, generate React components, or needs formatted code output.
    - Settings:
-     * outputFormat: "json" | "xml" | "markdown" | "html" | "csv" | "yaml"
+     * outputFormat: "presentation" | "html" | "tsx" | "react" | "json" | "xml" | "markdown" | "csv" | "yaml"
+   - Connect to 'code_viewer' output node to display the generated code
 
 10. **transformer**
     - Category: Agent
@@ -130,6 +131,12 @@ NODE_DEFINITIONS = """
       * customColumns: comma-separated column names
       * extractionDepth: "basic" | "detailed" | "comprehensive"
 
+15. **code_viewer**
+    - Category: Output
+    - Description: Displays generated code with syntax highlighting and live preview. Shows HTML presentations, React components, and other generated code.
+    - Use when: User wants to see/preview generated code, presentations, or components. Connect after 'formatting' agent.
+    - Settings: None
+
 ## NOT YET AVAILABLE (do NOT include):
 - web_search, aggregator, conditional_branch, research, router, planning
 
@@ -152,6 +159,12 @@ prompt → supervisor → semantic_search → synthesis → translator → respo
 
 Pattern 6: Document to Translated Output
 upload → supervisor → transformer → translator → response
+
+Pattern 7: Presentation Generation
+prompt → supervisor → semantic_search → synthesis → formatting (outputFormat: presentation) → code_viewer
+
+Pattern 8: React Component Generation
+prompt → supervisor → formatting (outputFormat: tsx) → code_viewer
 """
 
 SYSTEM_PROMPT = f"""You are a Workflow Builder Assistant. You help users create AI agent workflows by understanding their needs and generating workflow configurations.
