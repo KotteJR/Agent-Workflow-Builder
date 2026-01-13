@@ -3,6 +3,7 @@ LLM client models and protocols.
 Provides a Protocol for type compatibility across different LLM providers.
 """
 
+import asyncio
 import os
 from typing import Any, Dict, List, Protocol, runtime_checkable
 
@@ -68,15 +69,49 @@ class OpenAILLMClient:
             "max_tokens": max_tokens,
         }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions", headers=headers, json=payload
-            )
-            response.raise_for_status()
-            data = response.json()
-
-        choice = data["choices"][0]["message"]["content"]
-        return choice
+        # Use longer timeout for complex extraction tasks (5 minutes)
+        timeout = httpx.Timeout(300.0, connect=30.0)
+        
+        # Retry logic with exponential backoff for rate limits
+        max_retries = 5
+        base_delay = 2.0  # Start with 2 seconds
+        
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            for attempt in range(max_retries):
+                try:
+                    response = await client.post(
+                        f"{self.base_url}/chat/completions", headers=headers, json=payload
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    choice = data["choices"][0]["message"]["content"]
+                    return choice
+                    
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 429:
+                        # Rate limited - wait and retry with exponential backoff
+                        if attempt < max_retries - 1:
+                            delay = base_delay * (2 ** attempt)  # 2, 4, 8, 16, 32 seconds
+                            print(f"[OpenAI] Rate limited (429). Waiting {delay}s before retry {attempt + 2}/{max_retries}...")
+                            await asyncio.sleep(delay)
+                            continue
+                        else:
+                            raise RuntimeError(
+                                "OpenAI API rate limit exceeded after multiple retries. "
+                                "Please wait a few minutes and try again, or check your API usage limits."
+                            )
+                    else:
+                        # Other HTTP errors - don't retry
+                        raise
+                        
+                except httpx.ReadTimeout:
+                    raise RuntimeError(
+                        f"OpenAI API request timed out after 300 seconds. "
+                        "The document may be too large. Try reducing the document size."
+                    )
+        
+        # Should not reach here, but just in case
+        raise RuntimeError("Failed to get response from OpenAI API")
 
 
 class OpenAIEmbeddingClient:
@@ -236,5 +271,7 @@ def get_embedding_client() -> EmbeddingClientProtocol:
         return OllamaEmbeddingClient()
     else:
         return OpenAIEmbeddingClient()
+
+
 
 

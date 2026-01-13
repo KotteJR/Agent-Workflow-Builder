@@ -284,3 +284,5 @@ GET /api/workflow/examples/{example_id}
 - Specify output format (text, spreadsheet, image)
 - Provide context about the domain (legal, audit, etc.)
 
+
+

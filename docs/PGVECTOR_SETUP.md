@@ -149,3 +149,5 @@ Railway PostgreSQL pricing:
 
 For most use cases, the free tier is sufficient for storing embeddings.
 
+
+

@@ -126,10 +126,10 @@ export function WorkflowSidebar({
                             <img 
                                 src="/logo.png" 
                                 alt="Cogniveil" 
-                                className="h-12 w-auto"
+                                className="h-10 w-auto"
                             />
                             <span className="px-2 py-0.5 text-[10px] font-semibold bg-indigo-100 text-indigo-600 rounded-full">
-                                BETA
+                                BETA Version 0.1
                             </span>
                         </>
                     ) : (
@@ -138,7 +138,7 @@ export function WorkflowSidebar({
                             <img 
                                 src="/logo-square.png" 
                                 alt="Cogniveil" 
-                                className="w-12 h-12"
+                                className="w-10 h-10"
                             />
                         </div>
                     )}
