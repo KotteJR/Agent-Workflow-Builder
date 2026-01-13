@@ -46,23 +46,30 @@ TYPE D - BUSINESS/DATA DOCUMENTS:
 → Use document-appropriate schema
 
 ═══════════════════════════════════════════════════════════════════════════════
-REGULATORY EXTRACTION SCHEMA (12 COLUMNS)
+REGULATORY EXTRACTION SCHEMA (11 COLUMNS) - CONCISE FORMAT
 ═══════════════════════════════════════════════════════════════════════════════
 
-Extract into this EXACT 12-column schema:
+Extract into this EXACT 11-column schema (NO row numbers, use ABBREVIATIONS):
 
-1. # - Sequential row number (1, 2, 3...)
-2. Regulation - Full document name (e.g., "JCI-Hospital 8th Edition Standards Manual")
-3. Chapter - Main chapter name (e.g., "Accreditation Participation Requirements (APR)", "Section II: Patient-Centered Standards")
-4. Section - Sub-section name (e.g., "Access to Care and Continuity of Care (ACC)", "Anesthesia and Surgical Care (ASC)")
-5. Article - Standard/Article code or title (e.g., "APR.01.00", "ACC.01.00", "Overview", "Introduction", "Standards")
-6. Article Description - COMPLETE text including Intent, Rationale, Consequences, Measurable Elements - preserve ALL content
-7. Risk - Brief risk title derived from content (or "_" if none applicable)
-8. Risk Description - Detailed explanation of what could go wrong and consequences (or "_" if none)
-9. Compliance Risk Category - One of the DEFINED CATEGORIES below (or empty if not applicable)
-10. Mandated Control - Suggested control measure title (or "_" if none obvious)
-11. Control Description - How to implement the control (or "_" if none)
-12. Mandated Control Category - One of the DEFINED CONTROL CATEGORIES below (or empty if not applicable)
+1. Regulation - ABBREVIATED (e.g., "JCI 8th Ed", "CBAHI 4th Ed", "ISO 27001")
+2. Chapter - ABBREVIATED (e.g., "Section II", "Section I", "APR")
+3. Section - CODE ONLY (e.g., "ACC", "AOP", "ASC", "COP", "MMU", "PCI", "GLD", "SQE", "MOI", "FMS")
+4. Article - Standard code (e.g., "ACC.01.00", "ACC.01.01", "Overview")
+5. Article Description - MAX 1 SENTENCE summarizing the key requirement (not full text!)
+6. Risk - Brief risk title, max 5 words (or "_")
+7. Risk Description - MAX 1 SENTENCE describing consequences (or "_")
+8. Compliance Risk Category - Use category codes below
+9. Mandated Control - Control title, max 5 words (or "_")
+10. Control Description - MAX 1 SENTENCE on implementation (or "_")
+11. Mandated Control Category - Use control codes below
+
+CRITICAL: Keep descriptions SHORT! This allows processing the ENTIRE document.
+
+ABBREVIATION EXAMPLES:
+• "JOINT COMMISSION INTERNATIONAL ACCREDITATION STANDARDS FOR HOSPITALS, 8TH EDITION" → "JCI 8th Ed"
+• "Access to Care and Continuity of Care (ACC)" → "ACC"
+• "Section II: Patient-Centered Standards" → "Section II"
+• Long article description → 1 sentence summary of requirement
 
 ═══════════════════════════════════════════════════════════════════════════════
 COMPLIANCE RISK CATEGORIES (Use EXACTLY these)
@@ -211,45 +218,34 @@ TYPICAL RISK PATTERNS:
 • Policies/procedures → Compliance Governance & Framework
 
 ═══════════════════════════════════════════════════════════════════════════════
-EXAMPLE OUTPUT - SECTION I: ACCREDITATION PARTICIPATION REQUIREMENTS
+EXAMPLE OUTPUT - CONCISE FORMAT (MANDATORY)
 ═══════════════════════════════════════════════════════════════════════════════
 
-For Section I documents, use this structure:
-- Chapter: "Accreditation Participation Requirements (APR)"
-- Section: "Accreditation Participation Requirements (APR)"
-- Article: "Overview", "Introduction", "Requirements - APR.01.00", etc.
+NOTICE: Use ABBREVIATED names and SHORT descriptions to maximize row count!
 
-#,Regulation,Chapter,Section,Article,Article Description,Risk,Risk Description,Compliance Risk Category,Mandated Control,Control Description,Mandated Control Category
-1,"JCI-Hospital 8th Edition Standards Manual","Accreditation Participation Requirements (APR)","Accreditation Participation Requirements (APR)","Overview","This section consists of specific requirements for participation in the Joint Commission International (JCI) accreditation process...","_","_",,,"_","_",
-2,"JCI-Hospital 8th Edition Standards Manual","Accreditation Participation Requirements (APR)","Accreditation Participation Requirements (APR)","Introduction","The following is a list of all accreditation participation requirements. JCI reserves the right to update its APRs...","_","_",,,"_","_",
-3,"JCI-Hospital 8th Edition Standards Manual","Accreditation Participation Requirements (APR)","Accreditation Participation Requirements (APR)","Requirements - APR.01.00","The hospital submits information to JCI as required. Rationale: There are many points in the accreditation process at which data and information are required... Consequences of Noncompliance: If the hospital consistently fails to meet the requirements for timely submission, the hospital will be required to undergo a follow-up survey. Measurable Elements: 1. The hospital meets all requirements for timely submissions of data and information to JCI.","Do not meet the submission date of Data to JCI","Failure to meet timely submission requirements could result in follow-up survey and accreditation decision change.","Regulatory & Licensing Compliance","_","_",
-4,"JCI-Hospital 8th Edition Standards Manual","Accreditation Participation Requirements (APR)","Accreditation Participation Requirements (APR)","Requirements - APR.04.00","The hospital permits the performance of a survey at JCI's discretion. Rationale: JCI has the right to enter all or any portion of the hospital on an announced or unannounced basis... Consequences of Noncompliance: JCI will deny or withdraw accreditation of a hospital that refuses or limits access. Measurable Elements: 1. The hospital permits evaluations at the discretion of JCI.","Refusal of JCI survey access","Refusing or limiting access to JCI staff will lead to immediate denial of accreditation.","Regulatory & Licensing Compliance","Survey Access Policy","Hospital must have policy ensuring JCI surveyors have unrestricted access to all areas.","Governance & Documentation Controls"
-5,"JCI-Hospital 8th Edition Standards Manual","Accreditation Participation Requirements (APR)","Accreditation Participation Requirements (APR)","Requirements - APR.08.00","Any staff member can report concerns about patient safety to JCI without retaliatory action. Rationale: To create a safe reporting environment... Consequences of Noncompliance: Confirmed reports of retaliatory actions may cause Denial of Accreditation. Measurable Elements: 1. Hospital educates staff. 2. Hospital informs staff of no retaliation policy. 3. Hospital takes no disciplinary action.","Retaliation against staff reporting to JCI","Staff fear of retaliation could result in underreporting of safety issues, leading to patient harm.","Conduct, Ethics, and Conflicts Risks","Non-retaliation Policy","Implement and communicate a non-retaliation policy for JCI reporting.","Governance & Documentation Controls"
-6,"JCI-Hospital 8th Edition Standards Manual","Accreditation Participation Requirements (APR)","Accreditation Participation Requirements (APR)","Requirements - APR.11.00","The hospital provides care and environment that pose no risk of Immediate Threat to Health or Safety. Rationale: Patients, staff, and the public trust hospitals to be safe places. Consequences of Noncompliance: Immediate threats interrupt the survey and place hospital in Preliminary Denial of Accreditation. Measurable Elements: 1. Hospital provides care and environment posing no immediate threat.","Immediate Threat to Health or Safety","Hazardous conditions may result in patient harm, legal consequences, and accreditation denial.","ESG, Health and Safety Compliance","Safety Monitoring Program","Ongoing review and supervision of safety practices throughout the hospital.","ESG/Health & Safety Controls"
-
-═══════════════════════════════════════════════════════════════════════════════
-EXAMPLE OUTPUT - SECTION II: PATIENT-CENTERED STANDARDS
-═══════════════════════════════════════════════════════════════════════════════
-
-For Section II documents, use this structure:
-- Chapter: "Section II: Patient-Centered Standards"
-- Section: Specific chapter like "Access to Care and Continuity of Care (ACC)"
-- Article: "Overview", "Standards", "Admission to the Hospital - Standard ACC.01.00", etc.
-
-#,Regulation,Chapter,Section,Article,Article Description,Risk,Risk Description,Compliance Risk Category,Mandated Control,Control Description,Mandated Control Category
-1,"JCI-Hospital 8th Edition Standards Manual","Section II: Patient-Centered Standards","Access to Care and Continuity of Care (ACC)","Overview","Health care organizations are pursuing a more comprehensive and integrated approach toward delivering health care...","_","_",,,"_","_",
-2,"JCI-Hospital 8th Edition Standards Manual","Section II: Patient-Centered Standards","Access to Care and Continuity of Care (ACC)","Admission to the Hospital - Standard ACC.01.00","Patients admitted to the hospital are screened to identify if their health care needs match the hospital's mission, scope of care, and resources. Intent: Matching patient needs with hospital capabilities. Measurable Elements: 1. Screening results determine admission. 2. Patients outside scope are stabilized prior to transfer.","Misalignment of patient needs with hospital resources","Failure to properly screen patients could result in inappropriate admissions or unsafe transfers.","Operational Compliance Risks","Admission Screening Protocol","Develop criteria for patient screening at all entry points.","Governance & Documentation Controls"
-3,"JCI-Hospital 8th Edition Standards Manual","Section II: Patient-Centered Standards","Access to Care and Continuity of Care (ACC)","Patient Flow - ACC.02.02","The hospital establishes criteria for admission to and discharge from specialized units. Intent: Ensure appropriate level of care and efficient use of limited resources. Measurable Elements: 1-4. Written admission and discharge criteria, documented in medical records.","Admission/Discharge Without Established Criteria","Inconsistent criteria may lead to inefficient resource use and compromised patient care.","Operational Compliance Risks","Standardized Admission and Discharge Criteria","Establish written admission and discharge criteria for specialized units.","Governance & Documentation Controls"
-4, etc... etc...
-
-═══════════════════════════════════════════════════════════════════════════════
-EXAMPLE - MULTIPLE RISKS FROM SAME STANDARD
-═══════════════════════════════════════════════════════════════════════════════
-
-When a standard has multiple distinct risks, create multiple rows:
-
-63,"JCI-Hospital 8th Edition Standards Manual","Section II: Patient-Centered Standards","Assessment of Patients (AOP)","Nuclear Medicine Services - AOP.06.00","When applicable, the hospital establishes and implements a nuclear medicine safety program that complies with applicable professional standards, laws, and regulations...","Unqualified personnel handling nuclear medicine","Failure to ensure that staff involved in nuclear medicine are properly trained, qualified, and certified to perform their respective roles.","Employment & Labor Compliance Risks","Qualified and certified personnel required","A qualified individual(s) is responsible for overseeing nuclear medicine services, and relevant staff members are properly trained, qualified, and certified to perform their respective roles in nuclear medicine safety and procedures.","Employment and Labor Qualifications Controls"
-,"","","","","","Missing radiation safety requirements","Failure to provide shielding materials, ventilation systems, monitoring equipment, and radiation shielding barriers to ensure safety.","Employment & Labor Compliance Risks","Radiation safety requirements","Proper ventilation systems, monitoring equipment, and radiation shielding barriers are required to ensure safety.","ESG/Health & Safety Controls"
+Regulation,Chapter,Section,Article,Article Description,Risk,Risk Description,Compliance Risk Category,Mandated Control,Control Description,Mandated Control Category
+"JCI 8th Ed","Section I","APR","Overview","Requirements for JCI accreditation participation and maintaining award.","_","_","","_","_",""
+"JCI 8th Ed","Section I","APR","APR.01.00","Hospital must submit required information to JCI on time.","Late data submission","May trigger follow-up survey.","Regulatory & Licensing Compliance","Submission tracking","Track all JCI submission deadlines.","System/GRC Controls"
+"JCI 8th Ed","Section I","APR","APR.04.00","Hospital must permit JCI surveys at their discretion.","Survey access denial","Immediate denial of accreditation.","Regulatory & Licensing Compliance","Survey access policy","Ensure unrestricted surveyor access.","Governance & Documentation Controls"
+"JCI 8th Ed","Section I","APR","APR.08.00","Staff can report safety concerns to JCI without retaliation.","Staff retaliation","Denial of accreditation.","Conduct, Ethics, and Conflicts Risks","Non-retaliation policy","Communicate no-retaliation policy.","Governance & Documentation Controls"
+"JCI 8th Ed","Section II","ACC","Overview","Integrated care approach matching patient needs to services.","_","_","","_","_",""
+"JCI 8th Ed","Section II","ACC","ACC.01.00","Screen patients to match needs with hospital resources.","Patient-resource mismatch","Inappropriate admissions or unsafe transfers.","Operational Compliance Risks","Admission screening","Criteria for patient screening at entry.","Governance & Documentation Controls"
+"JCI 8th Ed","Section II","ACC","ACC.01.01","Prioritize emergent/urgent patients using triage process.","Delayed urgent care","Patient deterioration.","Operational Compliance Risks","Triage implementation","Use evidence-based triage process.","Governance & Documentation Controls"
+"JCI 8th Ed","Section II","ACC","ACC.01.02","Inform patients of unusual delays for services.","Uninformed delays","Patient dissatisfaction and harm.","Operational Compliance Risks","Delay notification","Protocol for communicating delays.","Governance & Documentation Controls"
+"JCI 8th Ed","Section II","ACC","ACC.02.00","Manage patient flow from admission to discharge.","Flow bottlenecks","Overcrowding and delayed care.","Operational Compliance Risks","Flow management","System to monitor patient flow.","System/GRC Controls"
+"JCI 8th Ed","Section II","ACC","ACC.02.01","Educate patient/family on care area, costs, and outcomes.","Uninformed patients","Confusion and dissatisfaction.","Operational Compliance Risks","Patient education","Comprehensive education program.","Training & Awareness Controls"
+"JCI 8th Ed","Section II","ACC","ACC.02.02","Establish criteria for specialized unit admission/discharge.","Inappropriate unit use","Resource misuse.","Operational Compliance Risks","Unit criteria","Written admission/discharge criteria.","Governance & Documentation Controls"
+"JCI 8th Ed","Section II","ACC","ACC.03.00","Provide continuous care coordination among providers.","Care coordination gaps","Fragmented care.","Operational Compliance Risks","Coordination protocol","Seamless coordination across settings.","Governance & Documentation Controls"
+"JCI 8th Ed","Section II","ACC","ACC.03.01","Assign qualified individual responsible for patient care.","Unclear responsibility","Gaps in care.","Operational Compliance Risks","Care coordinator","Assign designated care coordinator.","Governance & Documentation Controls"
+"JCI 8th Ed","Section II","ACC","ACC.04.00","Implement discharge planning based on patient readiness.","Inadequate discharge","Readmissions and harm.","Operational Compliance Risks","Discharge planning","Structured discharge process.","Governance & Documentation Controls"
+"JCI 8th Ed","Section II","ACC","ACC.04.01","Educate patient/family on continuing care needs at discharge.","Poor discharge education","Non-compliance with instructions.","Operational Compliance Risks","Discharge education","Comprehensive education program.","Training & Awareness Controls"
+"JCI 8th Ed","Section II","ACC","ACC.04.02","Prepare complete discharge summary for all patients.","Incomplete summary","Follow-up care gaps.","Operational Compliance Risks","Summary protocol","Complete accurate summaries.","Recordkeeping & Evidence Controls"
+"JCI 8th Ed","Section II","ACC","ACC.04.03","Document emergency care including arrival/departure times.","Missing ED documentation","Continuity issues.","Operational Compliance Risks","ED documentation","Comprehensive ED record system.","Recordkeeping & Evidence Controls"
+"JCI 8th Ed","Section II","ACC","ACC.04.04","Medical records contain patient profiles.","Incomplete profiles","Care errors.","Operational Compliance Risks","Profile management","Standardized patient profiles.","Recordkeeping & Evidence Controls"
+"JCI 8th Ed","Section II","ACC","ACC.04.05","Process for patients leaving against medical advice.","AMA patients","Health risks and legal issues.","Operational Compliance Risks","AMA process","Document AMA cases properly.","Governance & Documentation Controls"
+"JCI 8th Ed","Section II","ACC","ACC.05.00","Transfer patients based on needs and hospital capability.","Unsafe transfers","Continuity gaps.","Operational Compliance Risks","Transfer process","Written transfer protocols.","Governance & Documentation Controls"
+"JCI 8th Ed","Section II","ACC","ACC.05.01","Provide written summary to receiving organization.","Missing transfer info","Care gaps at receiving facility.","Operational Compliance Risks","Transfer summary","Provide clinical summary with patient.","Recordkeeping & Evidence Controls"
+"JCI 8th Ed","Section II","ACC","ACC.06.00","Transportation services meet laws and quality requirements.","Unsafe transport","Patient harm during transport.","ESG, Health and Safety Compliance","Transport safety","Compliant transport services.","ESG/Health & Safety Controls"
 
 
 These are additional instructions that you should keep in mind:
@@ -262,31 +258,38 @@ OUTPUT FORMAT: {output_format}
 These are the format instructions that you should follow:
 {format_instructions}
 
-CRITICAL RULES:
-These are the critical rules that you should follow:
+CRITICAL RULES FOR MAXIMUM ROW OUTPUT:
 1. Output ONLY the {output_format} data - no explanations, no markdown code blocks
-2. Use "_" (underscore) for empty Risk, Risk Description, Mandated Control, Control Description fields
+2. Use "_" for empty Risk, Risk Description, Mandated Control, Control Description fields
 3. Leave Compliance Risk Category and Mandated Control Category empty (blank) if not applicable
-4. Use double quotes around ALL text fields containing commas or special characters
+4. Use double quotes around ALL text fields
 5. Escape internal quotes with double-quotes ("")
-6. Preserve COMPLETE Article Description text - do not summarize"""
+6. KEEP DESCRIPTIONS SHORT (1 sentence max) - this is CRITICAL for processing the entire document
+7. Use ABBREVIATED names (JCI 8th Ed, ACC, Section II, etc.)
+8. NO row numbers (#) column - start directly with Regulation
+9. Extract EVERY standard/article from the ENTIRE document - do not stop early!"""
 
     CSV_FORMAT_INSTRUCTIONS = """CSV Requirements:
-- Header row: #,Regulation,Chapter,Section,Article,Article Description,Risk,Risk Description,Compliance Risk Category,Mandated Control,Control Description,Mandated Control Category
-- Use double quotes around ALL text fields
-- Preserve full text in descriptions - do NOT summarize
-- Empty Risk/Control fields: Use "_"
-- Empty Category fields: Leave blank (empty)
-- One logical unit per row (except when standard has multiple distinct risks)
-- Escape internal quotes with double-quotes ("")
-- Tab-separated values are also acceptable if CSV causes issues"""
+- Header: Regulation,Chapter,Section,Article,Article Description,Risk,Risk Description,Compliance Risk Category,Mandated Control,Control Description,Mandated Control Category
+- NO row number (#) column!
+- Article Description: MAX 1 SENTENCE (key requirement only)
+- Risk Description: MAX 1 SENTENCE (key consequence only)  
+- Control Description: MAX 1 SENTENCE (implementation summary)
+- Use ABBREVIATED names: "JCI 8th Ed", "ACC", "Section II"
+- Empty Risk/Control: "_"
+- Empty Category: leave blank
+- Double quotes around text fields
+- EXTRACT ALL STANDARDS from entire document!"""
 
     JSON_FORMAT_INSTRUCTIONS = """JSON Requirements:
-- Array of objects with keys: id, regulation, chapter, section, article, article_description, risk, risk_description, compliance_risk_category, mandated_control, control_description, mandated_control_category
-- Preserve full text in descriptions
-- Empty Risk/Control values: "_"
-- Empty Category values: null or ""
-- Properly escape special characters and newlines"""
+- Array of objects with keys: regulation, chapter, section, article, article_description, risk, risk_description, compliance_risk_category, mandated_control, control_description, mandated_control_category
+- NO id/row number field!
+- Article Description: MAX 1 SENTENCE
+- Risk Description: MAX 1 SENTENCE
+- Control Description: MAX 1 SENTENCE
+- Use ABBREVIATED names
+- Empty Risk/Control: "_"
+- Empty Category: "" or null"""
 
     async def execute(
         self,
@@ -363,9 +366,9 @@ Map document fields to these columns. Add supplementary columns if needed."""
         )
         
         # Truncate very long documents to avoid API timeouts
-        # 50K chars is roughly 12-15K tokens, using more of GPT-4o's 128K context window
-        # With 16K output tokens, we can extract more rows
-        max_length = 50000
+        # 80K chars is roughly 20K tokens - GPT-4o has 128K context window
+        # With concise output format, we can process much more content
+        max_length = 80000
         if len(content) > max_length:
             print(f"[TRANSFORMER] Document truncated from {len(content)} to {max_length} chars")
             content = content[:max_length] + "\n\n[... Document truncated for processing. Process remaining content in subsequent runs. ...]"
@@ -408,8 +411,8 @@ Begin extraction now. Output {actual_output_format} data only, no explanations."
         result = await self._chat(
             messages=messages,
             model=actual_model,
-            temperature=0.1,  # Low temperature for consistent extraction
-            max_tokens=16384,  # Doubled for larger documents (was 8192)
+            temperature=0.1,
+            max_tokens=22000,
         )
         
         # Clean up result
