@@ -411,35 +411,6 @@ Each agent adds to a shared context object:
 
 ---
 
-## 💡 Tips & Best Practices
-
-### For Document Extraction
-- Always use **Supervisor** before **Transformer** for better understanding
-- Enable **Auto-RAG** in Supervisor for additional context
-- Use **useAdvancedModel: true** in Transformer for complex documents
-
-### For Presentations
-- Use **Semantic Search** to ground content in your knowledge base
-- **Synthesis** helps create coherent narrative before formatting
-- Choose **presentation** output format in Code Agent
-
-### For Translation
-- Source documents should be clean text for best results
-- CSV/JSON structure is preserved during translation
-- Use **auto-detect** for source language when unsure
-
-### For Image Generation
-- Be specific in your prompts
-- Use **customInstructions** for precise style control
-- **Professional** preset works best for diagrams
-
-### General
-- Start simple, add complexity as needed
-- Use the **Supervisor** node for complex multi-step workflows
-- Check **execution history** to debug and improve workflows
-
----
-
 ## 📊 Output Formats
 
 | Format | Extension | Use Case |

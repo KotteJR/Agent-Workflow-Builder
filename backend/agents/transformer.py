@@ -161,6 +161,8 @@ For JCI Hospital 8th Edition Standards Manual:
 
 DOCUMENT STRUCTURE - SECTION I vs SECTION II:
 
+ITS VERY IMPORTANT THAT YOU SPLIT THE INFO INTO ITS UNIQUE ROWS!!! DONT MISS ANYTHING!!! AND YOU ARE ALLOWED TO MAKE AS MANY ROWS AS YOU NEED!!!!!!!!
+
 **SECTION I: Accreditation Participation Requirements**
 Use this hierarchy:
 - Chapter: "Accreditation Participation Requirements (APR)"
@@ -361,8 +363,9 @@ Map document fields to these columns. Add supplementary columns if needed."""
         )
         
         # Truncate very long documents to avoid API timeouts
-        # 35K chars is roughly 8-10K tokens, leaving room for prompt and response
-        max_length = 35000
+        # 50K chars is roughly 12-15K tokens, using more of GPT-4o's 128K context window
+        # With 16K output tokens, we can extract more rows
+        max_length = 50000
         if len(content) > max_length:
             print(f"[TRANSFORMER] Document truncated from {len(content)} to {max_length} chars")
             content = content[:max_length] + "\n\n[... Document truncated for processing. Process remaining content in subsequent runs. ...]"
@@ -406,7 +409,7 @@ Begin extraction now. Output {actual_output_format} data only, no explanations."
             messages=messages,
             model=actual_model,
             temperature=0.1,  # Low temperature for consistent extraction
-            max_tokens=8192,  # Increased for comprehensive output
+            max_tokens=16384,  # Doubled for larger documents (was 8192)
         )
         
         # Clean up result
