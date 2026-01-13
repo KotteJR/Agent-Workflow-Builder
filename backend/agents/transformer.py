@@ -65,15 +65,11 @@ Extract into this EXACT 11-column schema (NO row numbers, use ABBREVIATIONS):
 
 CRITICAL: Keep descriptions SHORT! This allows processing the ENTIRE document.
 
-MANDATORY ABBREVIATIONS (ALWAYS USE):
-• Regulation: "JCI 8th Ed" (NOT full name)
-• Chapter: "Section II" or "Section III" (NOT "Section II: Patient-Centered Standards")
-• Section: Just the CODE - "ACC", "FMS", "GLD", "SQE", "MOI", "PCI" (NOT "Facility Management and Safety (FMS)")
-• Article Description: MAX 1 sentence summary (NOT full text)
-
-WRONG: "Facility Management and Safety (FMS)" → RIGHT: "FMS"
-WRONG: "Governance, Leadership, and Direction (GLD)" → RIGHT: "GLD"
-WRONG: "Section III: Hospital Management Standards" → RIGHT: "Section III"
+ABBREVIATION EXAMPLES:
+• "JOINT COMMISSION INTERNATIONAL ACCREDITATION STANDARDS FOR HOSPITALS, 8TH EDITION" → "JCI 8th Ed"
+• "Access to Care and Continuity of Care (ACC)" → "ACC"
+• "Section II: Patient-Centered Standards" → "Section II"
+• Long article description → 1 sentence summary of requirement
 
 ═══════════════════════════════════════════════════════════════════════════════
 COMPLIANCE RISK CATEGORIES (Use EXACTLY these)
@@ -250,12 +246,7 @@ Regulation,Chapter,Section,Article,Article Description,Risk,Risk Description,Com
 "JCI 8th Ed","Section II","ACC","ACC.05.00","Transfer patients based on needs and hospital capability.","Unsafe transfers","Continuity gaps.","Operational Compliance Risks","Transfer process","Written transfer protocols.","Governance & Documentation Controls"
 "JCI 8th Ed","Section II","ACC","ACC.05.01","Provide written summary to receiving organization.","Missing transfer info","Care gaps at receiving facility.","Operational Compliance Risks","Transfer summary","Provide clinical summary with patient.","Recordkeeping & Evidence Controls"
 "JCI 8th Ed","Section II","ACC","ACC.06.00","Transportation services meet laws and quality requirements.","Unsafe transport","Patient harm during transport.","ESG, Health and Safety Compliance","Transport safety","Compliant transport services.","ESG/Health & Safety Controls"
-"JCI 8th Ed","Section III","FMS","Overview","Safe facilities for patients, staff, and visitors.","_","_","","_","_",""
-"JCI 8th Ed","Section III","FMS","FMS.01.00","Comply with laws, regulations, and building codes.","Non-compliance","Legal penalties and unsafe conditions.","Regulatory & Licensing Compliance","Compliance records","Maintain compliance documentation.","Recordkeeping & Evidence Controls"
-"JCI 8th Ed","Section III","FMS","FMS.06.00","Implement fire safety program compliant with codes.","Fire safety gaps","Fire-related incidents.","ESG, Health and Safety Compliance","Fire program","Implement compliant fire program.","ESG/Health & Safety Controls"
-"JCI 8th Ed","Section III","GLD","Overview","Governance structure for hospital leadership.","_","_","","_","_",""
-"JCI 8th Ed","Section III","GLD","GLD.01.00","Governing body responsible for hospital oversight.","Governance gaps","Lack of accountability.","Compliance Governance & Framework","Governance structure","Define governing body responsibilities.","Governance & Documentation Controls"
-"JCI 8th Ed","Section III","GLD","GLD.07.00","Create culture of safety throughout hospital.","Unsafe culture","Patient and staff harm.","Conduct, Ethics, and Conflicts Risks","Safety culture","Implement safety culture program.","Training & Awareness Controls"
+
 
 These are additional instructions that you should keep in mind:
 {custom_instructions}
@@ -375,9 +366,9 @@ Map document fields to these columns. Add supplementary columns if needed."""
         )
         
         # Truncate very long documents to avoid API timeouts
-        # 120K chars is roughly 30K tokens - GPT-4o has 128K context window
-        # With concise output format, we have room for large documents
-        max_length = 120000
+        # 80K chars is roughly 20K tokens - GPT-4o has 128K context window
+        # With concise output format, we can process much more content
+        max_length = 80000
         if len(content) > max_length:
             print(f"[TRANSFORMER] Document truncated from {len(content)} to {max_length} chars")
             content = content[:max_length] + "\n\n[... Document truncated for processing. Process remaining content in subsequent runs. ...]"
