@@ -222,7 +222,7 @@ class OpenAILLMClient:
 
 
 class OpenAIEmbeddingClient:
-    """OpenAI-compatible embedding client."""
+    """OpenAI-compatible embedding client with API key rotation."""
 
     def __init__(
         self,
@@ -230,30 +230,82 @@ class OpenAIEmbeddingClient:
         base_url: str | None = None,
         model: str | None = None,
     ) -> None:
-        self.api_key = api_key or config.OPENAI_API_KEY
+        self._explicit_key = api_key
         self.base_url = base_url or config.OPENAI_BASE_URL
         self.model = model or config.EMBEDDING_MODEL
-        if not self.api_key:
-            raise ValueError("OPENAI_API_KEY is required for embeddings")
+        
+        if api_key:
+            self._key_manager = None
+        else:
+            self._key_manager = OpenAIKeyManager()
+    
+    def _get_api_key(self) -> str:
+        """Get the current API key (from manager or explicit)."""
+        if self._explicit_key:
+            return self._explicit_key
+        return self._key_manager.get_current_key()
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """Embed texts using OpenAI embeddings endpoint."""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+        """Embed texts using OpenAI embeddings endpoint with key rotation."""
+        import time
+        
         payload: Dict[str, Any] = {"model": self.model, "input": texts}
         
-        with httpx.Client(timeout=120.0) as client:
-            response = client.post(
-                f"{self.base_url}/embeddings",
-                headers=headers,
-                json=payload,
-            )
-            response.raise_for_status()
-            data = response.json()
+        # Retry logic with key rotation
+        max_retries_per_key = 2
+        base_delay = 3.0
+        total_attempts = 0
+        max_total_attempts = len(config.OPENAI_API_KEYS) * max_retries_per_key * 2
         
-        return [item["embedding"] for item in data["data"]]
+        with httpx.Client(timeout=120.0) as client:
+            while total_attempts < max_total_attempts:
+                api_key = self._get_api_key()
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                }
+                
+                try:
+                    response = client.post(
+                        f"{self.base_url}/embeddings",
+                        headers=headers,
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    # Success - mark key as good
+                    if self._key_manager:
+                        self._key_manager.reset_key_status(api_key)
+                    
+                    return [item["embedding"] for item in data["data"]]
+                    
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 429:
+                        total_attempts += 1
+                        
+                        # Try to rotate to another key first
+                        if self._key_manager and self._key_manager.rotate_key("429 rate limit (embeddings)"):
+                            # Successfully rotated - try immediately with new key
+                            continue
+                        
+                        # No rotation available - wait with backoff
+                        if total_attempts < max_total_attempts:
+                            delay = min(base_delay * (2 ** (total_attempts - 1)), 60)
+                            key_info = f" (key #{self._key_manager.current_index + 1})" if self._key_manager else ""
+                            print(f"[OpenAI Embeddings] Rate limited{key_info}. Waiting {delay:.0f}s...")
+                            time.sleep(delay)
+                            continue
+                        else:
+                            num_keys = len(config.OPENAI_API_KEYS)
+                            raise RuntimeError(
+                                f"OpenAI Embeddings rate limit exceeded on all {num_keys} key(s). "
+                                "Wait 5-10 minutes and try again, or add more API keys."
+                            )
+                    else:
+                        raise
+        
+        raise RuntimeError("Failed to get embeddings from OpenAI API after all retries")
 
 
 # =============================================================================
