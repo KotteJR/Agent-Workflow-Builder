@@ -21,7 +21,11 @@ class Config:
     LLM_PROVIDER: Literal["openai", "ollama", "anthropic"] = os.getenv("LLM_PROVIDER", "openai").lower()  # type: ignore
     
     # OpenAI Configuration
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    # Supports multiple API keys (comma-separated) for automatic rotation on rate limits
+    # Example: OPENAI_API_KEY=sk-key1,sk-key2,sk-key3
+    _OPENAI_API_KEYS_RAW: str = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_API_KEYS: list[str] = [k.strip() for k in _OPENAI_API_KEYS_RAW.split(",") if k.strip()]
+    OPENAI_API_KEY: str = OPENAI_API_KEYS[0] if OPENAI_API_KEYS else ""  # Primary key for backwards compatibility
     OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     
     # Model Configuration

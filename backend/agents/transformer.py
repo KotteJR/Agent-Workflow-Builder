@@ -412,7 +412,7 @@ Begin extraction now. Output {actual_output_format} data only, no explanations."
             messages=messages,
             model=actual_model,
             temperature=0.1,
-            max_tokens=16384,  # GPT-4o maximum output limit
+            max_tokens=12000,  # GPT-4o maximum output limit
         )
         
         # Clean up result
